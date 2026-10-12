@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { lerDecimal, CATEGORIAS_CUSTO } from "@soloplan/regras";
+import { lerDecimal, CATEGORIAS_CUSTO, dataValida } from "@soloplan/regras";
 import { sessaoEquipe } from "@/lib/sessao";
 import { erroBanco, texto, valoresDe, type EstadoForm } from "@/lib/formulario";
 import { pdfLaudoSafra } from "@/lib/laudo-solo";
@@ -18,7 +18,6 @@ function numero(d: FormData, k: string, erros: Erros, { obrigatorio = false, pos
   if (positivo && n <= 0) { erros[k] = "Precisa ser maior que zero."; return null; }
   return n;
 }
-const dataValida = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
 const falhou = (d: FormData, campos: Erros): EstadoForm => ({ erro: "Confira os campos destacados.", campos, valores: valoresDe(d) });
 const atualizar = (safraId: string) => revalidatePath(`/safras/${safraId}`);
 
@@ -30,8 +29,11 @@ export async function registrarFotos(safraId: string, dados: { talhao_id: string
   const { supabase } = await sessaoEquipe();
   if (!dados.estadio.trim()) return { erro: "Escolha o estádio." };
   if (!dados.fotos.length) return { erro: "Nenhuma foto enviada." };
-  const prefixo = `clientes/`;
-  if (dados.fotos.some((f) => !f.arquivo_path.startsWith(prefixo) || !f.arquivo_path.includes(`/safras/${safraId}/`))) return { erro: "Caminho de arquivo inválido." };
+  const { data: safra } = await supabase.from("safras").select("cliente_id").eq("id", safraId).maybeSingle();
+  if (!safra) return { erro: "Safra não encontrada." };
+  const prefixo = `clientes/${safra.cliente_id}/safras/${safraId}/`;
+  const caminhoValido = (c: string) => c.startsWith(prefixo) && !c.split("/").some((parte) => parte === "." || parte === ".." || !parte);
+  if (dados.fotos.some((f) => !caminhoValido(f.arquivo_path) || (f.original_path != null && !caminhoValido(f.original_path)))) return { erro: "Caminho de arquivo inválido." };
   const linhas = dados.fotos.map((f) => ({
     safra_id: safraId, talhao_id: dados.talhao_id || null, estadio: dados.estadio.trim(), anotacao: dados.anotacao.trim() || null,
     arquivo_path: f.arquivo_path, original_path: f.original_path, tirada_em: f.tirada_em ?? new Date().toISOString(),
@@ -83,7 +85,7 @@ export async function salvarAplicacao(safraId: string, _: EstadoForm, d: FormDat
   if (!dataValida(data)) erros.data = "Informe a data.";
   const tipo_operacao = texto(d, "tipo_operacao");
   if (!tipo_operacao) erros.tipo_operacao = "Escolha a operação.";
-  const talhoes = d.getAll("talhoes").map(String);
+  const talhoes = [...new Set(d.getAll("talhoes").map(String))];
   if (!talhoes.length) erros.talhoes = "Marque os talhões aplicados.";
   const categoria_custo = texto(d, "categoria_custo");
   if (!CATEGORIAS_CUSTO.some((c) => c.valor === categoria_custo)) erros.categoria_custo = "Escolha a categoria.";
@@ -95,17 +97,8 @@ export async function salvarAplicacao(safraId: string, _: EstadoForm, d: FormDat
   };
   if (linha.dose != null && !linha.dose_unidade) erros.dose_unidade = "Informe a unidade da dose.";
   if (Object.keys(erros).length) return falhou(d, erros);
-  if (linha.area_ha == null) {
-    const { data: ts } = await supabase.from("talhoes").select("area_ha").in("id", talhoes);
-    linha.area_ha = (ts ?? []).reduce((s, t) => s + Number(t.area_ha), 0) || null;
-  }
-  const r = await supabase.from("aplicacoes").insert(linha).select("id").single();
+  const r = await supabase.rpc("salvar_aplicacao_com_talhoes", { p_safra_id: safraId, p_dados: linha, p_talhoes: talhoes });
   if (r.error) return { erro: erroBanco(r.error), valores: valoresDe(d) };
-  const v = await supabase.from("aplicacao_talhoes").insert(talhoes.map((talhao_id) => ({ aplicacao_id: r.data.id, talhao_id })));
-  if (v.error) {
-    await supabase.from("aplicacoes").delete().eq("id", r.data.id);
-    return { erro: erroBanco(v.error), valores: valoresDe(d) };
-  }
   atualizar(safraId);
   return { ok: `Aplicação de ${new Date(`${data}T12:00`).toLocaleDateString("pt-BR")} registrada.` };
 }
@@ -163,13 +156,14 @@ export async function salvarLaudoSafra(safraId: string, _: EstadoForm, d: FormDa
 export async function aprovarEnviarLaudo(id: string, safraId: string) {
   const { supabase, eAdmin, perfil } = await sessaoEquipe();
   if (!eAdmin) return { erro: "Só administradores aprovam e enviam laudos." };
-  const { data: l } = await supabase.from("laudos_safra").select("tipo, conteudo, cliente_id, safras(cultura, ano_agricola, fazendas(nome, clientes(nome)))").eq("id", id).single();
+  const { data: l } = await supabase.from("laudos_safra").select("tipo, conteudo, cliente_id, status, safras(cultura, ano_agricola, fazendas(nome, clientes(nome)))").eq("id", id).single();
   if (!l) return { erro: "Laudo não encontrado." };
+  if (l.status === "enviado_ao_cliente") return { erro: "Este laudo já foi enviado." };
   const s = l.safras as unknown as { cultura: string; ano_agricola: string; fazendas: { nome: string; clientes: { nome: string } } };
   const bytes = await pdfLaudoSafra({ cliente: s.fazendas.clientes.nome, fazenda: s.fazendas.nome, safra: `${s.cultura} ${s.ano_agricola}`, tipo: l.tipo,
     texto: (l.conteudo as { texto?: string })?.texto ?? "", aprovadoPor: perfil.nome, aprovadoEm: new Date().toISOString() });
-  const caminho = `clientes/${l.cliente_id}/laudos-safra/${id}.pdf`;
-  const up = await supabase.storage.from("documentos").upload(caminho, new Blob([bytes as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf", upsert: true });
+  const caminho = `clientes/${l.cliente_id}/laudos-safra/${id}/${crypto.randomUUID()}.pdf`;
+  const up = await supabase.storage.from("documentos").upload(caminho, new Blob([bytes as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf" });
   if (up.error) return { erro: "Não foi possível guardar o PDF. Tente de novo." };
   const { error } = await supabase.from("laudos_safra").update({ status: "enviado_ao_cliente", pdf_path: caminho }).eq("id", id);
   if (error) return { erro: erroBanco(error) };

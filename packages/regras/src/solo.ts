@@ -37,6 +37,13 @@ export function analisarSolo(valores: ValoresSolo, opcoes: { profundidade: Profu
     const v = valores[chave];
     if (typeof v !== "number" || !Number.isFinite(v) || v < 0) throw new Error(`Valor de ${nome} ausente ou inválido.`);
   }
+  if (valores.ph > 14) throw new Error("pH deve estar entre 0 e 14.");
+  if (valores.argila > 100) throw new Error("Argila deve estar entre 0 e 100%.");
+  for (const chave of ["s", "b", "cu", "fe", "mn", "zn"] as const) {
+    const v = valores[chave];
+    if (v != null && (!Number.isFinite(v) || v < 0)) throw new Error(`Valor de ${chave} inválido.`);
+  }
+  if (opcoes.profundidade !== "0-20" && opcoes.profundidade !== "20-40") throw new Error("Profundidade inválida.");
   if (!(opcoes.prnt > 0 && opcoes.prnt <= 100)) throw new Error("PRNT do calcário deve estar entre 1 e 100%.");
   const v2 = opcoes.v2 ?? tabelas.v2_padrao;
   if (!(v2 > 0 && v2 <= 100)) throw new Error("V% desejada deve estar entre 1 e 100%.");

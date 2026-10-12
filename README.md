@@ -35,7 +35,7 @@ Decisões confirmadas com a Soloplan: lançamentos da equipe aparecem para o cli
 
 ### Rodar localmente
 1. Postgres 16 rodando em 127.0.0.1:5432 (usuário postgres/postgres).
-2. `npm install`
+2. Node.js 22.12+ e `npm ci`
 3. `npm run reset:supabase` e depois `npm run dev:supabase` (login e API do Supabase sem Docker; imprime as chaves locais).
 4. Copie a ANON_KEY para `web/.env.local` como `NEXT_PUBLIC_SUPABASE_ANON_KEY`, com `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`.
 5. `npm -w @soloplan/web run dev` e abra http://127.0.0.1:3000
@@ -79,3 +79,7 @@ Teste no navegador: `node tests/e2e/etapa5.mjs qa` (precisa de `pdftotext` insta
 
 `dev/subir-tudo.sh` sobe o ambiente inteiro. `python3 dev/gerar-fotos-demo.py /tmp/demofotos && node dev/seed-demo.mjs /tmp/demofotos > /tmp/ids.json && node tests/e2e/demo.mjs /tmp/ids.json pasta-de-fotos` apaga os dados de desenvolvimento, cria um cenário fictício limpo e tira fotos das telas.
 Contas de demonstração (senha `teste-123456`): `luciano@soloplan.local` (admin), `funcionario@soloplan.local`, `produtor1@exemplo.local`, `produtor2@exemplo.local`.
+
+## Revisão de qualidade — 12/10/2026
+
+Consulte `REVISAO.md`. `npm run check` roda lint, TypeScript, testes de regras e compilação; `npm test` roda regras e banco. Aplique **todas** as migrações (inclui `0800_integridade_e_transacoes` e `0900_fila_ia`) antes de subir o site. Não use `reset` em produção.

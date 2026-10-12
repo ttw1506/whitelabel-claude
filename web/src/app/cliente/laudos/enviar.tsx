@@ -25,12 +25,17 @@ export function EnviarLaudoSolo({ clienteId, fazendas }: { clienteId: string; fa
     setEnviando(true);
     const ext = (arquivo.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
     const caminho = `clientes/${clienteId}/envios/${crypto.randomUUID()}.${ext}`;
-    const up = await supabaseNavegador().storage.from("documentos").upload(caminho, arquivo, { contentType: arquivo.type || "application/octet-stream" });
-    if (up.error) { setEnviando(false); return setErro("Não foi possível enviar o arquivo. Verifique a internet e tente de novo."); }
-    const r = await registrarEnvioLaudoSolo({ fazendaId, caminho, mensagem: String(d.get("mensagem") ?? "") });
-    setEnviando(false);
-    if (r.erro) return setErro(r.erro);
-    setOk(r.ok); form.reset(); roteador.refresh();
+    try {
+      const up = await supabaseNavegador().storage.from("documentos").upload(caminho, arquivo, { contentType: arquivo.type || "application/octet-stream" });
+      if (up.error) throw new Error("Não foi possível enviar o arquivo. Verifique a internet e tente de novo.");
+      const r = await registrarEnvioLaudoSolo({ fazendaId, caminho, mensagem: String(d.get("mensagem") ?? "") });
+      if (r.erro) throw new Error(r.erro);
+      setOk(r.ok); form.reset(); roteador.refresh();
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Falha no envio. Tente de novo.");
+    } finally {
+      setEnviando(false);
+    }
   }
   return (
     <Expansivel rotulo="Enviar laudo de solo" principal icone={<Upload size={18} aria-hidden />}>

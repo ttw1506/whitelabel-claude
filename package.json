@@ -12,11 +12,23 @@
     "test:integracao": "node --test tests/integracao/*.test.mjs",
     "test:regras": "npm -w @soloplan/regras test",
     "dev:supabase": "dev/supabase-local.sh start",
-    "reset:supabase": "dev/supabase-local.sh reset"
+    "reset:supabase": "dev/supabase-local.sh reset",
+    "lint": "npm -w @soloplan/web run lint",
+    "typecheck": "npm -w @soloplan/web run typecheck",
+    "build": "npm -w @soloplan/web run build",
+    "check": "npm run lint && npm run typecheck && npm run test:regras && npm run build"
   },
   "devDependencies": {
     "pg": "8.13.1",
     "playwright-core": "^1.55.0",
     "supabase": "2.20.5"
+  },
+  "overrides": {
+    "tar": "7.5.22",
+    "postcss": "8.5.29",
+    "tinypool": "2.2.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

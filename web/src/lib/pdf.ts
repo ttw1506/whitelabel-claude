@@ -10,7 +10,7 @@ const MARGEM = 48;
 
 /** Troca o que a fonte padrão não desenha. */
 export const latin1 = (t: string) =>
-  t.replace(/≥/g, ">=").replace(/≤/g, "<=").replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/₂/g, "2").replace(/[^\x00-\xFF–—•]/g, "?");
+  t.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, "").replace(/≥/g, ">=").replace(/≤/g, "<=").replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/₂/g, "2").replace(/[^\x00-\xFF–—•]/g, "?");
 
 export class Documento {
   private constructor(public pdf: PDFDocument, private normal: PDFFont, private negrito: PDFFont) {}
@@ -43,20 +43,37 @@ export class Documento {
     }
   }
 
+  private quebrar(t: string, fonte: PDFFont, tamanho: number, largura: number): string[] {
+    const linhas: string[] = [];
+    for (const paragrafo of latin1(t).split("\n")) {
+      let linha = "";
+      for (const palavra of paragrafo.split(/ +/)) {
+        const tentativa = linha ? `${linha} ${palavra}` : palavra;
+        if (linha && fonte.widthOfTextAtSize(tentativa, tamanho) > largura) {
+          linhas.push(linha); linha = "";
+        }
+        // Divide também palavras longas, como identificadores e nomes de arquivo.
+        for (const letra of (linha ? ` ${palavra}` : palavra)) {
+          if (linha && fonte.widthOfTextAtSize(linha + letra, tamanho) > largura) {
+            linhas.push(linha); linha = "";
+          }
+          linha += letra;
+        }
+      }
+      linhas.push(linha);
+    }
+    return linhas;
+  }
+
   private garantir(altura: number) { if (this.y - altura < MARGEM + 20) this.novaPagina(); }
   espaco(n: number) { this.y -= n; }
 
   texto(t: string, { tamanho = 10, negrito = false, cor = TINTA, x = MARGEM, largura = A4[0] - 2 * MARGEM } = {}) {
     const fonte = negrito ? this.negrito : this.normal;
-    for (const paragrafo of latin1(t).split("\n")) {
-      const palavras = paragrafo.split(" ");
-      let linha = "";
-      const escrever = (l: string) => { this.garantir(tamanho * 1.4); this.pagina.drawText(l, { x, y: this.y - tamanho, size: tamanho, font: fonte, color: cor }); this.y -= tamanho * 1.4; };
-      for (const p of palavras) {
-        const tentativa = linha ? `${linha} ${p}` : p;
-        if (fonte.widthOfTextAtSize(tentativa, tamanho) > largura && linha) { escrever(linha); linha = p; } else linha = tentativa;
-      }
-      escrever(linha);
+    for (const linha of this.quebrar(t, fonte, tamanho, largura)) {
+      this.garantir(tamanho * 1.4);
+      this.pagina.drawText(linha, { x, y: this.y - tamanho, size: tamanho, font: fonte, color: cor });
+      this.y -= tamanho * 1.4;
     }
   }
 
@@ -69,16 +86,20 @@ export class Documento {
     const total = pesos.reduce((a, b) => a + b, 0);
     const larguras = pesos.map((p) => (p / total) * (A4[0] - 2 * MARGEM));
     const desenhar = (celulas: string[], negrito: boolean) => {
-      this.garantir(18);
-      let x = MARGEM;
       const fonte = negrito ? this.negrito : this.normal;
-      celulas.forEach((c, i) => {
-        const t = latin1(c);
-        const w = fonte.widthOfTextAtSize(t, 9);
-        this.pagina.drawText(t, { x: direita[i] ? x + larguras[i] - w - 4 : x + 4, y: this.y - 12, size: 9, font: fonte, color: negrito ? CINZA : TINTA });
-        x += larguras[i];
-      });
-      this.y -= 17;
+      const colunas = celulas.map((c, i) => this.quebrar(c, fonte, 9, larguras[i] - 8));
+      const quantidade = Math.max(1, ...colunas.map(c => c.length));
+      for (let l = 0; l < quantidade; l++) {
+        this.garantir(17);
+        let x = MARGEM;
+        colunas.forEach((c, i) => {
+          const t = c[l] ?? "";
+          const w = fonte.widthOfTextAtSize(t, 9);
+          this.pagina.drawText(t, { x: direita[i] ? x + larguras[i] - w - 4 : x + 4, y: this.y - 12, size: 9, font: fonte, color: negrito ? CINZA : TINTA });
+          x += larguras[i];
+        });
+        this.y -= 17;
+      }
       this.pagina.drawLine({ start: { x: MARGEM, y: this.y + 2 }, end: { x: A4[0] - MARGEM, y: this.y + 2 }, thickness: 0.5, color: LINHA });
     };
     desenhar(cabecalho, true);

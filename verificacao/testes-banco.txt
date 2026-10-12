@@ -1,0 +1,37 @@
+
+> test:db
+> node --test supabase/tests/*.test.mjs
+
+✔ cliente A só enxerga os próprios cadastros (213.267179ms)
+✔ cliente B não vê nada do cliente A, nem buscando pelo id (7.164099ms)
+✔ cliente não altera, não cria e não apaga cadastros (7.866584ms)
+✔ cliente não consegue se promover nem trocar de cliente (5.760916ms)
+✔ usuário recém-criado sem vínculo e visitante anônimo não veem nada (11.902138ms)
+✔ cliente só vê laudo depois de enviado ao cliente (43.44557ms)
+✔ funcionário cadastra e edita, mas não aprova laudo, não apaga e não gerencia usuários (19.823955ms)
+✔ admin aprova e envia o laudo; o banco carimba quem e quando (8.093131ms)
+✔ tudo que a IA cria nasce como rascunho e o cliente não vê (25.419505ms)
+✔ IA não cadastra clientes, fazendas nem fotos, não apaga e não mexe em rascunho já revisado (13.153815ms)
+✔ cliente_id é herdado do pai e não pode ser forjado (7.707246ms)
+✔ cliente pede laudo parcial e envia laudo de solo só para as próprias safras e fazendas (20.853792ms)
+✔ auditoria registra quem fez o quê; só admin lê (10.466999ms)
+✔ custo da aplicação vira lançamento de custo e acompanha a aplicação (37.77529ms)
+✔ aplicação criada pela IA gera custo em rascunho, invisível ao cliente até o admin aprovar (16.630987ms)
+✔ salvamento da safra é atômico, deduplica talhões e impede vínculo inválido (19.961567ms)
+✔ aplicação, vínculos e custo são salvos juntos pelo funcionário (30.413032ms)
+✔ pedido compara a fazenda mesmo quando o dono é o mesmo (5.147038ms)
+✔ laudo, foto e custo não aceitam referências de outra fazenda ou safra (33.012099ms)
+✔ editar conteúdo enviado retira acesso do cliente até nova aprovação (10.386222ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 724.130485
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

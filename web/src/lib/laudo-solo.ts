@@ -4,8 +4,6 @@ import { Documento } from "./pdf";
 import { CAMPOS_SOLO } from "./campos-solo";
 export { CAMPOS_SOLO };
 
-
-
 export type DadosLaudoSolo = {
   cliente: string; fazenda: string; talhao: string | null; profundidade: Profundidade; dataColeta: string | null; laboratorio: string | null;
   valores: ValoresSolo; prnt: number; v2: number; recomendacao: string; aprovadoPor: string | null; aprovadoEm: string | null; previa: boolean;

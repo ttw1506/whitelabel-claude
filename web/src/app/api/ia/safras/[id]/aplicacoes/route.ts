@@ -9,7 +9,8 @@ export const POST = rotaIA<{ id: string }>(async (req, { supabase }, { id }) => 
   const { achados, faltando } = await resolverTalhoes(supabase, id, v.valor.talhoes);
   if (faltando.length) return erro(422, "Talhão não pertence a esta safra.", { talhoes: `Não achei: ${faltando.join(", ")}.` });
   // Custo informado vira lançamento de custo (também rascunho) pelo gatilho do banco.
-  const { talhoes: _t, ...linha } = v.valor;
+  const linha = { ...v.valor } as Omit<typeof v.valor, "talhoes"> & { talhoes?: string[] };
+  delete linha.talhoes;
   if (linha.area_ha == null) linha.area_ha = achados.reduce((s, t) => s + Number(t.area_ha), 0) || undefined;
   const { data, error } = await supabase.from("aplicacoes").insert({ ...linha, safra_id: id }).select("id, status").single();
   if (error) return erroBanco(error);

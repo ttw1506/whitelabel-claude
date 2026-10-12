@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { lerDecimal, validarCpfCnpj, anoAgricolaValido, UFS } from "@soloplan/regras";
+import { lerDecimal, validarCpfCnpj, anoAgricolaValido, UFS, dataValida } from "@soloplan/regras";
 import { sessaoEquipe } from "@/lib/sessao";
 import { erroBanco, texto, valoresDe, type EstadoForm } from "@/lib/formulario";
 
@@ -126,10 +126,10 @@ export async function salvarSafra(id: string | null, fazendaId: string, _: Estad
   if (!anoAgricolaValido(ano_agricola)) erros.ano_agricola = "Use o formato 2025/26.";
   const cultura = texto(d, "cultura");
   if (!cultura) erros.cultura = "Escolha a cultura.";
-  const talhoes = d.getAll("talhoes").map(String);
+  const talhoes = [...new Set(d.getAll("talhoes").map(String))];
   if (!talhoes.length) erros.talhoes = "Marque pelo menos um talhão.";
   const data_plantio = texto(d, "data_plantio") || null;
-  if (data_plantio && !/^\d{4}-\d{2}-\d{2}$/.test(data_plantio)) erros.data_plantio = "Data inválida.";
+  if (data_plantio && !dataValida(data_plantio)) erros.data_plantio = "Data inválida.";
   const status = texto(d, "status") === "colhida" ? "colhida" : "em_andamento";
   const linha = {
     ano_agricola, cultura, cultivar: texto(d, "cultivar") || null, data_plantio, status,
@@ -139,28 +139,10 @@ export async function salvarSafra(id: string | null, fazendaId: string, _: Estad
   };
   if (Object.keys(erros).length) return falhou(d, erros);
 
-  if (linha.area_ha == null) {
-    const { data } = await supabase.from("talhoes").select("area_ha").in("id", talhoes);
-    linha.area_ha = (data ?? []).reduce((s, t) => s + Number(t.area_ha), 0) || null;
-  }
-  const r = id
-    ? await supabase.from("safras").update(linha).eq("id", id).select("id").single()
-    : await supabase.from("safras").insert({ ...linha, fazenda_id: fazendaId }).select("id").single();
+  const r = await supabase.rpc("salvar_safra_com_talhoes", { p_id: id, p_fazenda_id: fazendaId, p_dados: linha, p_talhoes: talhoes });
   if (r.error) return { erro: erroBanco(r.error), valores: valoresDe(d) };
-  const safraId = r.data.id;
+  const safraId = r.data;
 
-  const { data: atuais } = await supabase.from("safra_talhoes").select("talhao_id").eq("safra_id", safraId);
-  const tinha = new Set((atuais ?? []).map((t) => t.talhao_id));
-  const sair = [...tinha].filter((t) => !talhoes.includes(t));
-  const entrar = talhoes.filter((t) => !tinha.has(t));
-  if (sair.length) {
-    const e = await supabase.from("safra_talhoes").delete().eq("safra_id", safraId).in("talhao_id", sair);
-    if (e.error) return { erro: erroBanco(e.error), valores: valoresDe(d) };
-  }
-  if (entrar.length) {
-    const e = await supabase.from("safra_talhoes").insert(entrar.map((talhao_id) => ({ safra_id: safraId, talhao_id })));
-    if (e.error) return { erro: erroBanco(e.error), valores: valoresDe(d) };
-  }
   revalidatePath(`/fazendas/${fazendaId}`);
   redirect(`/safras/${safraId}`);
 }

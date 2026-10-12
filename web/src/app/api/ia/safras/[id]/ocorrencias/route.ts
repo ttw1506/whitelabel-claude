@@ -12,7 +12,8 @@ export const POST = rotaIA<{ id: string }>(async (req, { supabase }, { id }) => 
     if (faltando.length) return erro(422, "Talhão não pertence a esta safra.", { talhao: `Não achei "${faltando[0]}" nesta safra.` });
     talhao_id = achados[0].id;
   }
-  const { talhao: _t, ...resto } = v.valor;
+  const resto = { ...v.valor } as Omit<typeof v.valor, "talhao"> & { talhao?: string };
+  delete resto.talhao;
   const { data, error } = await supabase.from("ocorrencias").insert({ ...resto, safra_id: id, talhao_id }).select("id, status").single();
   if (error) return erroBanco(error);
   return NextResponse.json({ ocorrencia: data }, { status: 201 });

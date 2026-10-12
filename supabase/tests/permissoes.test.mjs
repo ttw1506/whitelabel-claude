@@ -188,3 +188,51 @@ test("aplicação criada pela IA gera custo em rascunho, invisível ao cliente a
   await b.como(admin, (q) => q("update aplicacoes set status = 'aprovado' where id = $1", [id]));
   await b.como(uA, async (q) => assert.equal((await q("select count(*) from custos where aplicacao_id = $1", [id])).rows[0].count, "1"));
 });
+
+test("salvamento da safra é atômico, deduplica talhões e impede vínculo inválido", async () => {
+  const dados = { ano_agricola: "2026/27", cultura: "Milho", status: "em_andamento" };
+  const antes = (await b.db.query("select count(*) from safras")).rows[0].count;
+  await assert.rejects(b.como(func, q => q("select salvar_safra_com_talhoes(null, $1, $2, $3::uuid[])", [ids.fA, dados, [ids.tA, ids.tB]])), /não pertence/);
+  assert.equal((await b.db.query("select count(*) from safras")).rows[0].count, antes);
+  const r = await b.como(func, q => q("select salvar_safra_com_talhoes(null, $1, $2, $3::uuid[]) as id", [ids.fA, dados, [ids.tA, ids.tA]]));
+  const id = r.rows[0].id;
+  assert.equal((await b.db.query("select area_ha::float from safras where id=$1", [id])).rows[0].area_ha, 80);
+  assert.equal((await b.db.query("select count(*) from safra_talhoes where safra_id=$1", [id])).rows[0].count, "1");
+  await assert.rejects(b.como(func, q => q("select salvar_safra_com_talhoes($1, $2, $3, $4::uuid[])", [id, ids.fA, { ...dados, cultura: "Outra" }, [ids.tB]])), /não pertence/);
+  assert.equal((await b.db.query("select cultura from safras where id=$1", [id])).rows[0].cultura, "Milho");
+  await assert.rejects(b.como(uA, q => q("select salvar_safra_com_talhoes(null, $1, $2, $3::uuid[])", [ids.fA, dados, [ids.tA]])), /permissão/);
+});
+
+test("aplicação, vínculos e custo são salvos juntos pelo funcionário", async () => {
+  const dados = { data: "2026-10-12", tipo_operacao: "Adubação", custo: 100 };
+  const antes = (await b.db.query("select count(*) from aplicacoes")).rows[0].count;
+  await assert.rejects(b.como(func, q => q("select salvar_aplicacao_com_talhoes($1, $2, $3::uuid[])", [ids.sA, dados, [ids.tB]])), /não pertence/);
+  assert.equal((await b.db.query("select count(*) from aplicacoes")).rows[0].count, antes);
+  const r = await b.como(func, q => q("select salvar_aplicacao_com_talhoes($1, $2, $3::uuid[]) as id", [ids.sA, dados, [ids.tA, ids.tA]]));
+  const id = r.rows[0].id;
+  assert.equal((await b.db.query("select count(*) from aplicacao_talhoes where aplicacao_id=$1", [id])).rows[0].count, "1");
+  assert.equal((await b.db.query("select valor::float from custos where aplicacao_id=$1", [id])).rows[0].valor, 100);
+});
+
+test("pedido compara a fazenda mesmo quando o dono é o mesmo", async () => {
+  const f = await b.como(func, q => q("insert into fazendas (cliente_id, nome) values ($1, 'Outra fazenda A') returning id", [ids.cA]));
+  await assert.rejects(b.como(uA, q => q("insert into envios_cliente (tipo, safra_id, fazenda_id) values ('pedido_laudo_parcial', $1, $2)", [ids.sA, f.rows[0].id])), /não é desta fazenda/);
+});
+
+test("laudo, foto e custo não aceitam referências de outra fazenda ou safra", async () => {
+  const ocorrencia = await b.como(func, q => q("insert into ocorrencias (safra_id, tipo, nome) values ($1, 'praga', 'Teste') returning id", [ids.sB]));
+  await assert.rejects(b.como(func, q => q("insert into fotos (safra_id, estadio, arquivo_path, ocorrencia_id) values ($1, 'V1', 'teste.jpg', $2)", [ids.sA, ocorrencia.rows[0].id])), /ocorrência não pertence/);
+  const envio = await b.como(uB, q => q("insert into envios_cliente (tipo, fazenda_id, arquivo_path) values ('laudo_solo', $1, 'b.pdf') returning id", [ids.fB]));
+  await assert.rejects(b.como(func, q => q("insert into laudos_solo (fazenda_id, profundidade, envio_id) values ($1, '0-20', $2)", [ids.fA, envio.rows[0].id])), /envio não pertence/);
+  const ap = await b.como(func, q => q("insert into aplicacoes (safra_id, data, tipo_operacao) values ($1, current_date, 'Teste') returning id", [ids.sB]));
+  await assert.rejects(b.como(func, q => q("insert into custos (safra_id, aplicacao_id, categoria, descricao, valor) values ($1, $2, 'outros', 'Teste', 1)", [ids.sA, ap.rows[0].id])), /aplicação não pertence/);
+  await assert.rejects(b.como(func, q => q("insert into custos (safra_id, aplicacao_id, categoria, descricao, valor) values ($1, $2, 'outros', 'Teste', 1)", [ids.sB, ap.rows[0].id])), /vem de uma aplicação/);
+});
+
+test("editar conteúdo enviado retira acesso do cliente até nova aprovação", async () => {
+  const l = await b.como(admin, q => q("insert into laudos_safra (safra_id, tipo, status, pdf_path) values ($1, 'parcial', 'enviado_ao_cliente', 'teste.pdf') returning id", [ids.sA]));
+  const id = l.rows[0].id;
+  const r = await b.como(admin, q => q("update laudos_safra set conteudo = '{\"texto\":\"Correção\"}' where id=$1 returning status, pdf_path, aprovado_por, aprovado_em, enviado_em", [id]));
+  assert.deepEqual(r.rows[0], { status: "em_revisao", pdf_path: null, aprovado_por: null, aprovado_em: null, enviado_em: null });
+  await b.como(uA, async q => assert.equal((await q("select count(*) from laudos_safra where id=$1", [id])).rows[0].count, "0"));
+});

@@ -1,0 +1,97 @@
+
+> check
+> npm run lint && npm run typecheck && npm run test:regras && npm run build
+
+
+> lint
+> npm -w @soloplan/web run lint
+
+
+> @soloplan/web@0.1.0 lint
+> eslint . --max-warnings=0
+
+
+> typecheck
+> npm -w @soloplan/web run typecheck
+
+
+> @soloplan/web@0.1.0 typecheck
+> tsc --noEmit
+
+
+> test:regras
+> npm -w @soloplan/regras test
+
+
+> @soloplan/regras@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /workspace/soloplan-campo/packages/regras
+
+
+ Test Files  11 passed (11)
+      Tests  56 passed (56)
+   Start at  18:56:46
+   Duration  2.95s (transform 179ms, setup 0ms, import 485ms, tests 416ms, environment 1ms)
+
+
+> build
+> npm -w @soloplan/web run build
+
+
+> @soloplan/web@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.27
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 4.2s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/18) ...
+   Generating static pages (4/18) 
+   Generating static pages (8/18) 
+   Generating static pages (13/18) 
+ ✓ Generating static pages (18/18)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                      136 B         102 kB
+├ ƒ /_not-found                            992 B         103 kB
+├ ƒ /aguardando                            136 B         102 kB
+├ ƒ /cliente                               136 B         102 kB
+├ ƒ /cliente/gastos                        167 B         105 kB
+├ ƒ /cliente/laudos                      2.54 kB         151 kB
+├ ƒ /cliente/laudos/pdf/[tipo]/[id]        136 B         102 kB
+├ ƒ /cliente/safras                        167 B         105 kB
+├ ƒ /cliente/safras/[id]                 4.44 kB         110 kB
+├ ƒ /clientes                              167 B         105 kB
+├ ƒ /clientes/[id]                       1.38 kB         107 kB
+├ ƒ /clientes/[id]/editar                1.93 kB         111 kB
+├ ƒ /clientes/novo                       1.93 kB         111 kB
+├ ƒ /convite                               813 B         103 kB
+├ ƒ /entrar                                758 B         103 kB
+├ ƒ /fazendas/[id]                       3.04 kB         112 kB
+├ ƒ /fazendas/[id]/editar                2.24 kB         111 kB
+├ ƒ /fazendas/nova                       2.24 kB         111 kB
+├ ƒ /laudos-solo/[id]                      508 B         106 kB
+├ ƒ /laudos-solo/[id]/editar               132 B         155 kB
+├ ƒ /laudos-solo/[id]/pdf                  136 B         102 kB
+├ ƒ /laudos-solo/novo                      132 B         155 kB
+├ ƒ /painel                                508 B         106 kB
+├ ƒ /safras/[id]                         32.4 kB         185 kB
+├ ƒ /safras/[id]/editar                  2.77 kB         111 kB
+├ ƒ /safras/nova                         2.77 kB         111 kB
+└ ƒ /usuarios                            3.23 kB         108 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/131-b73fc81f60ab06ea.js       45.6 kB
+  ├ chunks/c7879cf7-b5ab1053c1d9a2e7.js  54.2 kB
+  └ other shared chunks (total)          1.93 kB
+
+
+ƒ Middleware                               70 kB
+
+ƒ  (Dynamic)  server-rendered on demand
+
