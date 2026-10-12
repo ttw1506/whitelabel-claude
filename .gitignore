@@ -1,2 +1,6 @@
 node_modules/
 .env*
+.next/
+qa/
+dev/.keys
+supabase/.temp/

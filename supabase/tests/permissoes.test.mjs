@@ -94,6 +94,9 @@ test("funcionário cadastra e edita, mas não aprova laudo, não apaga e não ge
     assert.equal((await q("update fazendas set municipio = 'Quirinópolis' where id = $1", [f])).rowCount, 1);
     assert.equal(await contar(q, "clientes"), 2);
     assert.equal((await q("delete from fazendas where id = $1", [f])).rowCount, 0, "não apaga");
+    const t2 = (await q("insert into talhoes (fazenda_id, nome, area_ha) values ($1, 'T2', 20) returning id", [ids.fA])).rows[0].id;
+    await q("insert into safra_talhoes (safra_id, talhao_id) values ($1, $2)", [ids.sA, t2]);
+    assert.equal((await q("delete from safra_talhoes where safra_id = $1 and talhao_id = $2", [ids.sA, t2])).rowCount, 1, "desmarca talhão da safra");
     assert.equal((await q("update perfis set papel = 'admin' where usuario_id = $1", [func])).rowCount, 0, "não se promove");
   });
   await negado(b.como(func, (q) => q("update laudos_safra set status = 'aprovado' where id = $1", [ids.laudoA])));

@@ -2,7 +2,10 @@
   "name": "soloplan-campo",
   "private": true,
   "type": "module",
-  "workspaces": ["web", "packages/*"],
+  "workspaces": [
+    "web",
+    "packages/*"
+  ],
   "scripts": {
     "test": "npm run test:regras && npm run test:db",
     "test:db": "node --test supabase/tests/*.test.mjs",
@@ -12,6 +15,7 @@
   },
   "devDependencies": {
     "pg": "8.13.1",
+    "playwright-core": "^1.55.0",
     "supabase": "2.20.5"
   }
 }
