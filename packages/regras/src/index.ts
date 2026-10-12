@@ -10,3 +10,4 @@ export * from "./recomendacao";
 export * from "./ia";
 export * from "./datas";
 export * from "./car";
+export * from "./fila-offline";

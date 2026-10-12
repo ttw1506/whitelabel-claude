@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Soloplan Campo",
+    "slug": "soloplan-campo",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "ios": { "bundleIdentifier": "br.com.soloplan.campo", "infoPlist": { "NSCameraUsageDescription": "Para fotografar a lavoura durante a visita.", "NSPhotoLibraryUsageDescription": "Para escolher fotos da lavoura." } },
+    "android": { "package": "br.com.soloplan.campo", "permissions": ["CAMERA"] },
+    "plugins": ["expo-image-picker"]
+  }
+}
