@@ -26,7 +26,7 @@ Arquivos:
 
 Pendente para as próximas etapas: regras de acesso dos arquivos (fotos e PDFs) no armazenamento do Supabase, junto com o upload na etapa 3.
 
-## Etapa 2: cadastro de clientes, fazendas, talhões e safras (concluída, aguardando aprovação)
+## Etapa 2: cadastro de clientes, fazendas, talhões e safras (aprovada)
 
 Telas (Next.js, em `web/`): entrar, painel, clientes, cliente, fazenda (com talhões e dados do CAR), safra (com régua de estádios), e os formulários de cada um.
 Regras compartilhadas com o futuro app de celular em `packages/regras/` (números no formato brasileiro, CPF/CNPJ inclusive alfanumérico, ano agrícola, estádios).
@@ -43,3 +43,15 @@ Decisões confirmadas com a Soloplan: lançamentos da equipe aparecem para o cli
 ### Testes
 - `npm test`: regras (15) e permissões do banco (13).
 - `node tests/e2e/etapa2.mjs qa`: passeio completo no navegador (precisa do site e do Supabase local rodando, e dos usuários de demonstração).
+
+## Etapa 3: tela da safra (concluída)
+
+- Linha do tempo por estádio com as fotos. A foto é comprimida no navegador (lado maior 1920 px); o original fica guardado. Data, hora e GPS vêm do EXIF da foto.
+- Fotos num depósito privado (`fotos`): o produtor só abre fotos liberadas das próprias safras; só a equipe envia; só admin apaga.
+- Ocorrências, aplicações (o custo da aplicação vira lançamento de custo automaticamente) e custos por categoria, com total e R$/ha.
+- Rascunhos da IA ficam fora do total e só o admin aprova.
+- Laudos da safra: a equipe escreve, só o admin aprova e envia ao cliente.
+
+Testes: `npm test` (regras e banco), `npm run test:integracao` (isolamento das fotos, com o Supabase local rodando),
+`node tests/e2e/etapa2.mjs qa` e `node tests/e2e/etapa3.mjs qa` (passeio no navegador, com site e Supabase local rodando).
+O Supabase local agora inclui o serviço de arquivos (supabase/storage compilado em /home/user/tools/storage-api).
