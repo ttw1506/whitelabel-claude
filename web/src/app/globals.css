@@ -217,3 +217,4 @@ tr.total td { font-weight: 700; border-top: 2px solid var(--ink); }
 td.num, th.num { white-space: nowrap; }
 @media (max-width: 599px) { td, th { padding-left: var(--s2); padding-right: var(--s2); } .bloco { padding: var(--s4); } .tabela-rolagem { margin: 0 calc(-1 * var(--s4)); padding: 0 var(--s4); } }
 @media (max-width: 599px) { table { font-size: 14px; } }
+.campos-solo { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); } .campos-solo .unidade input { padding-right: 84px; } .campos-solo .unidade span { font-size: 12px; }

@@ -65,3 +65,12 @@ O Supabase local agora inclui o serviço de arquivos (supabase/storage compilado
 - **Painel**: pendências (pedidos dos produtores, laudos para revisar/enviar, rascunhos para aprovar) e fotos novas da semana.
 
 Teste no navegador: `node tests/e2e/etapa4.mjs qa`.
+
+## Etapa 5: laudo de solo (concluída)
+
+- Cálculos da seção 6 em `packages/regras/src/solo.ts` (K em cmolc, SB, CTC, V%, m%, calagem, gessagem na camada 20–40 cm, interpretação de P por argila e de K por CTC). As tabelas de interpretação ficam em `packages/regras/config/interpretacao-solo.json`, para o agrônomo ajustar.
+- Equipe lança os resultados do laboratório (ou parte de um laudo enviado pelo produtor), vê a análise ao vivo e edita a recomendação sugerida. Só o admin aprova e envia; o PDF é gerado e guardado nesse momento.
+- Produtor envia o laudo do laboratório (PDF ou foto) e baixa os PDFs dos laudos de solo e de safra já enviados.
+- Depósito `documentos` com isolamento testado.
+
+Teste no navegador: `node tests/e2e/etapa5.mjs qa` (precisa de `pdftotext` instalado).

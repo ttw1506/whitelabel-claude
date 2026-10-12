@@ -11,14 +11,15 @@ export const metadata = { title: "Painel" };
 export default async function Painel() {
   const { supabase, perfil } = await sessaoEquipe();
   const semana = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-  const [clientes, fazendas, safras, pedidos, laudos, rascunhos, fotosNovas] = await Promise.all([
+  const [clientes, fazendas, safras, pedidos, laudos, rascunhos, fotosNovas, laudosSolo] = await Promise.all([
     supabase.from("clientes").select("id", { count: "exact", head: true }),
     supabase.from("fazendas").select("id", { count: "exact", head: true }),
     supabase.from("safras").select("id, ano_agricola, cultura, cultivar, area_ha, estadio_atual, fazendas(nome, clientes(nome))").eq("status", "em_andamento").order("ano_agricola", { ascending: false }),
-    supabase.from("envios_cliente").select("id, tipo, mensagem, criado_em, safra_id, clientes(nome), safras(cultura, ano_agricola)").neq("status", "concluido").order("criado_em"),
+    supabase.from("envios_cliente").select("id, tipo, status, mensagem, criado_em, safra_id, fazenda_id, clientes(nome), safras(cultura, ano_agricola), fazendas(nome)").neq("status", "concluido").order("criado_em"),
     supabase.from("laudos_safra").select("id, tipo, status, safra_id, safras(cultura, ano_agricola, fazendas(nome, clientes(nome)))").in("status", ["rascunho_ia", "em_revisao", "aprovado"]).order("criado_em"),
     Promise.all(["ocorrencias", "aplicacoes", "custos", "fotos"].map((t) => supabase.from(t).select("safra_id, safras(cultura, ano_agricola, fazendas(nome, clientes(nome)))").in("status", ["rascunho_ia", "em_revisao"]))),
     supabase.from("fotos").select("safra_id, safras(cultura, ano_agricola, fazendas(nome))").gte("criado_em", semana),
+    supabase.from("laudos_solo").select("id, status, profundidade, fazendas(nome, clientes(nome))").in("status", ["rascunho_ia", "em_revisao", "aprovado"]).order("criado_em"),
   ]);
   const rascunhosPorSafra = new Map<string, { n: number; cliente: string; safra: string }>();
   for (const r of rascunhos) for (const x of r.data ?? []) {
@@ -32,7 +33,7 @@ export default async function Painel() {
     const atual = fotosPorSafra.get(f.safra_id) ?? { n: 0, nome: `${s.cultura} ${s.ano_agricola} · ${s.fazendas.nome}` };
     fotosPorSafra.set(f.safra_id, { ...atual, n: atual.n + 1 });
   }
-  const totalPendencias = (pedidos.data?.length ?? 0) + (laudos.data?.length ?? 0) + rascunhosPorSafra.size;
+  const totalPendencias = (pedidos.data?.length ?? 0) + (laudos.data?.length ?? 0) + (laudosSolo.data?.length ?? 0) + rascunhosPorSafra.size;
   const emAndamento = safras.data ?? [];
   const area = emAndamento.reduce((s, x) => s + Number(x.area_ha ?? 0), 0);
   const primeiroNome = perfil.nome.split(" ")[0];
@@ -72,7 +73,7 @@ export default async function Painel() {
       </section>
       <section className="bloco" aria-labelledby="t-pendencias">
         <div className="bloco-cab"><h2 id="t-pendencias">Pendências</h2><span className={totalPendencias ? "selo laranja" : "selo verde"}>{totalPendencias ? `${totalPendencias} para resolver` : "Nada pendente"}</span></div>
-        {!pedidos.data?.length && !laudos.data?.length && !rascunhosPorSafra.size ? <Vazio titulo="Tudo em dia">Pedidos dos produtores, laudos para revisar e rascunhos da IA aparecem aqui.</Vazio> : (
+        {!totalPendencias ? <Vazio titulo="Tudo em dia">Pedidos dos produtores, laudos para revisar e rascunhos da IA aparecem aqui.</Vazio> : (
           <ul className="pendencias">
             {(pedidos.data ?? []).map((p) => {
               const c = p.clientes as unknown as { nome: string };
@@ -80,8 +81,10 @@ export default async function Painel() {
               return (
                 <li key={p.id}>
                   <span className="selo laranja">{p.tipo === "pedido_laudo_parcial" ? "Pedido de laudo parcial" : "Laudo de solo enviado"}</span>
-                  <div><strong>{c.nome}</strong>{s && <> · <Link href={`/safras/${p.safra_id}`}>{s.cultura} {s.ano_agricola}</Link></>}<span className="muted"> · {dataHoraBr(p.criado_em)}</span>{p.mensagem && <p className="muted" style={{ margin: "4px 0 0" }}>“{p.mensagem}”</p>}</div>
-                  <BotaoAcao acao={concluirPedido.bind(null, p.id)} rotulo="Marcar como atendido" rotuloPendente="Salvando…" />
+                  <div><strong>{c.nome}</strong>{s && <> · <Link href={`/safras/${p.safra_id}`}>{s.cultura} {s.ano_agricola}</Link></>}{p.tipo === "laudo_solo" && <> · {(p.fazendas as unknown as { nome: string } | null)?.nome}</>}<span className="muted"> · {dataHoraBr(p.criado_em)}</span>{p.mensagem && <p className="muted" style={{ margin: "4px 0 0" }}>“{p.mensagem}”</p>}</div>
+                  {p.tipo === "laudo_solo"
+                    ? (p.status === "aberto" ? <Link className="btn principal pequeno" href={`/laudos-solo/novo?envio=${p.id}`}>Analisar</Link> : <span className="selo">Em análise</span>)
+                    : <BotaoAcao acao={concluirPedido.bind(null, p.id)} rotulo="Marcar como atendido" rotuloPendente="Salvando…" />}
                 </li>
               );
             })}
@@ -91,6 +94,15 @@ export default async function Painel() {
                 <li key={l.id}>
                   <span className="selo laranja">{l.status === "rascunho_ia" ? "Laudo da IA para revisar" : l.status === "aprovado" ? "Laudo aprovado, falta enviar" : "Laudo em revisão"}</span>
                   <div><strong>{s.fazendas.clientes.nome}</strong> · <Link href={`/safras/${l.safra_id}#laudos`}>Laudo {l.tipo} · {s.cultura} {s.ano_agricola} · {s.fazendas.nome}</Link></div>
+                </li>
+              );
+            })}
+            {(laudosSolo.data ?? []).map((l) => {
+              const f = l.fazendas as unknown as { nome: string; clientes: { nome: string } };
+              return (
+                <li key={l.id}>
+                  <span className="selo laranja">{l.status === "rascunho_ia" ? "Laudo de solo da IA" : l.status === "aprovado" ? "Laudo de solo: falta enviar" : "Laudo de solo em revisão"}</span>
+                  <div><strong>{f.clientes.nome}</strong> · <Link href={`/laudos-solo/${l.id}`}>{f.nome} · {l.profundidade} cm</Link></div>
                 </li>
               );
             })}

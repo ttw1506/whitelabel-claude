@@ -5,8 +5,8 @@
     "_fonte": "Embrapa Cerrados. Limites SUPERIORES de muito baixo, baixo, médio e adequado (mg/dm³); acima do último é alto.",
     "faixas": [
       { "argila_ate": 15, "nome": "até 15%", "limites": [6, 12, 18, 25] },
-      { "argila_ate": 35, "nome": "16 a 35%", "limites": [5, 10, 14, 18] },
-      { "argila_ate": 60, "nome": "36 a 60%", "limites": [3, 6, 8, 12] },
+      { "argila_ate": 35, "nome": "de 16 a 35%", "limites": [5, 10, 14, 18] },
+      { "argila_ate": 60, "nome": "de 36 a 60%", "limites": [3, 6, 8, 12] },
       { "argila_ate": null, "nome": "acima de 60%", "limites": [1, 2, 3, 4] }
     ]
   },

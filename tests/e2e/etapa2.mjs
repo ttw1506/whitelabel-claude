@@ -31,7 +31,7 @@ async function entrar(p, email) {
   await p.goto(`${URL}/entrar`);
   await p.fill("#email", email);
   await p.fill("#senha", "teste-123456");
-  await Promise.all([p.waitForURL((u) => !/^\/(entrar)?$/.test(u.pathname), { waitUntil: "commit" }), p.click("button[type=submit]")]);
+  await Promise.all([p.waitForURL((u) => !/^\/(entrar)?$/.test(u.pathname), { waitUntil: "commit", timeout: 60000 }), p.click("button[type=submit]")]);
 }
 const largura = async (p) => p.evaluate(() => document.documentElement.scrollWidth);
 

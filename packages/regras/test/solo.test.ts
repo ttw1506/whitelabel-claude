@@ -17,7 +17,7 @@ describe("analisarSolo: cálculos da seção 6", () => {
     expect(a.calagemTHa).toBeCloseTo(2.0291, 3);
   });
   it("interpreta P pela argila e K pela CTC", () => {
-    expect(a.p).toEqual({ valor: 3, classe: "muito_baixo", faixaArgila: "36 a 60%" });
+    expect(a.p).toEqual({ valor: 3, classe: "muito_baixo", faixaArgila: "de 36 a 60%" });
     expect(a.k).toEqual({ valor: 60, classe: "adequado", faixaCtc: "CTC ≥ 4" });
   });
   it("na camada 0–20 não recomenda gesso", () => {
@@ -64,7 +64,7 @@ describe("tabelas de interpretação", () => {
     expect(classificarP(6.1, 15).classe).toBe("baixo");
     expect(classificarP(25, 10).classe).toBe("adequado");
     expect(classificarP(25.5, 10).classe).toBe("alto");
-    expect(classificarP(10, 20)).toMatchObject({ classe: "baixo", faixaArgila: "16 a 35%" });
+    expect(classificarP(10, 20)).toMatchObject({ classe: "baixo", faixaArgila: "de 16 a 35%" });
     expect(classificarP(5, 70)).toMatchObject({ classe: "alto", faixaArgila: "acima de 60%" });
   });
   it("K pela CTC", () => {

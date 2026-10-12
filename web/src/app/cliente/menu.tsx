@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sprout, Wallet } from "lucide-react";
+import { FileText, Sprout, Wallet } from "lucide-react";
 
 const ITENS = [
   { href: "/cliente/gastos", nome: "Meus gastos", Icone: Wallet },
   { href: "/cliente/safras", nome: "Minhas safras", Icone: Sprout },
+  { href: "/cliente/laudos", nome: "Laudos", Icone: FileText },
 ];
 
 export function MenuCliente({ variante }: { variante: "lateral" | "abas" }) {

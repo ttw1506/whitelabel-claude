@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { lerDecimal, CATEGORIAS_CUSTO } from "@soloplan/regras";
 import { sessaoEquipe } from "@/lib/sessao";
 import { erroBanco, texto, valoresDe, type EstadoForm } from "@/lib/formulario";
+import { pdfLaudoSafra } from "@/lib/laudo-solo";
 
 type Erros = Record<string, string>;
 const TIPOS_OCORRENCIA = ["praga", "doenca", "planta_daninha", "deficiencia"];
@@ -160,9 +161,17 @@ export async function salvarLaudoSafra(safraId: string, _: EstadoForm, d: FormDa
 }
 
 export async function aprovarEnviarLaudo(id: string, safraId: string) {
-  const { supabase, eAdmin } = await sessaoEquipe();
+  const { supabase, eAdmin, perfil } = await sessaoEquipe();
   if (!eAdmin) return { erro: "Só administradores aprovam e enviam laudos." };
-  const { error } = await supabase.from("laudos_safra").update({ status: "enviado_ao_cliente" }).eq("id", id);
+  const { data: l } = await supabase.from("laudos_safra").select("tipo, conteudo, cliente_id, safras(cultura, ano_agricola, fazendas(nome, clientes(nome)))").eq("id", id).single();
+  if (!l) return { erro: "Laudo não encontrado." };
+  const s = l.safras as unknown as { cultura: string; ano_agricola: string; fazendas: { nome: string; clientes: { nome: string } } };
+  const bytes = await pdfLaudoSafra({ cliente: s.fazendas.clientes.nome, fazenda: s.fazendas.nome, safra: `${s.cultura} ${s.ano_agricola}`, tipo: l.tipo,
+    texto: (l.conteudo as { texto?: string })?.texto ?? "", aprovadoPor: perfil.nome, aprovadoEm: new Date().toISOString() });
+  const caminho = `clientes/${l.cliente_id}/laudos-safra/${id}.pdf`;
+  const up = await supabase.storage.from("documentos").upload(caminho, new Blob([bytes as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf", upsert: true });
+  if (up.error) return { erro: "Não foi possível guardar o PDF. Tente de novo." };
+  const { error } = await supabase.from("laudos_safra").update({ status: "enviado_ao_cliente", pdf_path: caminho }).eq("id", id);
   if (error) return { erro: erroBanco(error) };
   atualizar(safraId);
 }

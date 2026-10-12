@@ -13,3 +13,12 @@ export async function pedirLaudoParcial(safraId: string, _: EstadoForm, d: FormD
   revalidatePath(`/cliente/safras/${safraId}`);
   return { ok: "Pedido enviado. A Soloplan vai preparar o laudo parcial e avisar quando estiver pronto." };
 }
+
+export async function registrarEnvioLaudoSolo(dados: { fazendaId: string; caminho: string; mensagem: string }) {
+  const { supabase, clienteId } = await sessaoCliente();
+  if (!dados.caminho.startsWith(`clientes/${clienteId}/envios/`)) return { erro: "Arquivo inválido." };
+  const { error } = await supabase.from("envios_cliente").insert({ tipo: "laudo_solo", fazenda_id: dados.fazendaId, arquivo_path: dados.caminho, mensagem: dados.mensagem.trim() || null });
+  if (error) return { erro: erroBanco(error) };
+  revalidatePath("/cliente/laudos");
+  return { ok: "Laudo enviado. A Soloplan vai analisar e você recebe o resultado aqui." };
+}

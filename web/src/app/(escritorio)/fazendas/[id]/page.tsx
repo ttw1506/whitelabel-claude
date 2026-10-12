@@ -13,6 +13,7 @@ const ha = (n: unknown) => formatarHa(n == null ? null : Number(n));
 export default async function Fazenda({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, eAdmin } = await sessaoEquipe();
+  const { data: laudosSolo } = await supabase.from("laudos_solo").select("id, data_coleta, profundidade, status, analise, talhoes(nome)").eq("fazenda_id", id).order("data_coleta", { ascending: false, nullsFirst: false });
   const { data: f } = await supabase.from("fazendas")
     .select("*, clientes(nome), talhoes(id, nome, area_ha), safras(id, ano_agricola, cultura, cultivar, area_ha, status, estadio_atual)")
     .eq("id", id).order("nome", { referencedTable: "talhoes" }).order("ano_agricola", { referencedTable: "safras", ascending: false }).maybeSingle();
@@ -55,6 +56,31 @@ export default async function Fazenda({ params }: { params: Promise<{ id: string
       </section>
 
       <Talhoes fazendaId={id} talhoes={(f.talhoes ?? []) as { id: string; nome: string; area_ha: number }[]} areaFazenda={f.area_total_ha == null ? null : Number(f.area_total_ha)} eAdmin={eAdmin} />
+
+      <section className="bloco" aria-labelledby="titulo-solo">
+        <div className="bloco-cab">
+          <h2 id="titulo-solo">Laudos de solo</h2>
+          <Link className="btn" href={`/laudos-solo/novo?fazenda=${id}`}><Plus size={18} aria-hidden />Novo laudo de solo</Link>
+        </div>
+        {!laudosSolo?.length ? <Vazio titulo="Nenhum laudo de solo">Lance os resultados do laboratório para calcular calagem, gessagem e interpretar P e K.</Vazio> : (
+          <div className="tabela-rolagem"><table>
+            <thead><tr><th>Coleta</th><th>Talhão</th><th>Camada</th><th className="num">V%</th><th className="num">Calagem</th><th>Situação</th></tr></thead>
+            <tbody>{laudosSolo.map((l) => {
+              const a = l.analise as { v: number; calagemTHa: number } | null;
+              return (
+                <tr key={l.id}>
+                  <td><Link className="linha" href={`/laudos-solo/${l.id}`}>{l.data_coleta ? new Date(`${l.data_coleta}T12:00:00Z`).toLocaleDateString("pt-BR") : "Sem data"}</Link></td>
+                  <td>{(l.talhoes as unknown as { nome: string } | null)?.nome ?? "Fazenda toda"}</td>
+                  <td>{l.profundidade} cm</td>
+                  <td className="num">{a ? `${formatarNumero(a.v, 1)}%` : "—"}</td>
+                  <td className="num">{a ? (a.calagemTHa > 0 ? `${formatarNumero(a.calagemTHa, 2)} t/ha` : "—") : "—"}</td>
+                  <td>{l.status === "enviado_ao_cliente" ? <span className="selo verde">Enviado</span> : <span className="selo laranja">{l.status === "rascunho_ia" ? "Rascunho da IA" : l.status === "aprovado" ? "Aprovado" : "Em revisão"}</span>}</td>
+                </tr>
+              );
+            })}</tbody>
+          </table></div>
+        )}
+      </section>
 
       <section className="bloco" aria-labelledby="titulo-imovel">
         <div className="bloco-cab"><h2 id="titulo-imovel">Imóvel e CAR</h2></div>
