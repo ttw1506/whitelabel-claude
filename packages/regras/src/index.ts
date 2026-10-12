@@ -5,3 +5,4 @@ export * from "./brasil";
 export * from "./custos";
 export * from "./linha-do-tempo";
 export * from "./gastos";
+export * from "./solo";

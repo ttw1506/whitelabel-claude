@@ -86,3 +86,27 @@ test("o depósito de fotos não é público", async () => {
   const r = await fetch(data.publicUrl);
   assert.notEqual(r.status, 200);
 });
+
+/* ---------- Documentos (etapa 5) ---------- */
+const pdf = () => new Blob([Buffer.from("%PDF-1.4\n%teste\n")], { type: "application/pdf" });
+
+test("produtor envia documento só na própria pasta de envios", async () => {
+  const meu = `clientes/${ids.cA}/envios/${randomUUID()}.pdf`;
+  assert.ifError((await cliA.storage.from("documentos").upload(meu, pdf(), { contentType: "application/pdf" })).error);
+  assert.ok((await cliA.storage.from("documentos").upload(`clientes/${ids.cB}/envios/${randomUUID()}.pdf`, pdf(), { contentType: "application/pdf" })).error, "não grava na pasta de outro produtor");
+  assert.ok((await cliA.storage.from("documentos").upload(`clientes/${ids.cA}/laudos-solo/${randomUUID()}.pdf`, pdf(), { contentType: "application/pdf" })).error, "não grava fora de envios");
+  assert.ifError((await cliA.storage.from("documentos").download(meu)).error);
+  assert.ok((await cliB.storage.from("documentos").download(meu)).error, "outro produtor não lê");
+  assert.ifError((await func.storage.from("documentos").download(meu)).error, "equipe lê");
+});
+
+test("PDF do laudo de solo: o produtor só abre depois de enviado a ele", async () => {
+  const caminho = `clientes/${ids.cA}/laudos-solo/${randomUUID()}.pdf`;
+  assert.ifError((await func.storage.from("documentos").upload(caminho, pdf(), { contentType: "application/pdf" })).error);
+  const laudo = await func.from("laudos_solo").insert({ fazenda_id: ids.fA, profundidade: "0-20", pdf_path: caminho }).select("id").single();
+  assert.ifError(laudo.error);
+  assert.ok((await cliA.storage.from("documentos").download(caminho)).error, "em revisão: não abre");
+  assert.ifError((await admin.from("laudos_solo").update({ status: "enviado_ao_cliente" }).eq("id", laudo.data.id)).error);
+  assert.ifError((await cliA.storage.from("documentos").download(caminho)).error, "enviado: abre");
+  assert.ok((await cliB.storage.from("documentos").download(caminho)).error, "outro produtor nunca abre");
+});
