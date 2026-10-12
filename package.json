@@ -2,10 +2,16 @@
   "name": "soloplan-campo",
   "private": true,
   "type": "module",
+  "workspaces": ["web", "packages/*"],
   "scripts": {
-    "test:db": "node --test supabase/tests/*.test.mjs"
+    "test": "npm run test:regras && npm run test:db",
+    "test:db": "node --test supabase/tests/*.test.mjs",
+    "test:regras": "npm -w @soloplan/regras test",
+    "dev:supabase": "dev/supabase-local.sh start",
+    "reset:supabase": "dev/supabase-local.sh reset"
   },
   "devDependencies": {
-    "pg": "8.13.1"
+    "pg": "8.13.1",
+    "supabase": "2.20.5"
   }
 }
