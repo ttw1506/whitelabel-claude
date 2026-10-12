@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLICAS = ["/entrar", "/convite", "/api/ia"]; // /api/ia usa chave de API, não cookie
+const PUBLICAS = ["/entrar", "/convite", "/api/ia", "/api/saude"]; // /api/ia usa chave de API, não cookie
 
 export async function middleware(request: NextRequest) {
   let resposta = NextResponse.next({ request });
