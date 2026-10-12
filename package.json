@@ -1,0 +1,11 @@
+{
+  "name": "soloplan-campo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:db": "node --test supabase/tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "pg": "8.13.1"
+  }
+}
