@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, UserCog, Users } from "lucide-react";
+import { Bot, LayoutDashboard, UserCog, Users } from "lucide-react";
 
 const ITENS = [
   { href: "/painel", nome: "Painel", Icone: LayoutDashboard },
   { href: "/clientes", nome: "Clientes e fazendas", Icone: Users },
+  { href: "/ia", nome: "Inteligência artificial", Icone: Bot },
 ];
 
 // Fazendas e safras ficam dentro de Clientes.

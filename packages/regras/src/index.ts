@@ -7,3 +7,4 @@ export * from "./linha-do-tempo";
 export * from "./gastos";
 export * from "./solo";
 export * from "./recomendacao";
+export * from "./ia";
