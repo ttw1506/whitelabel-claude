@@ -1,9 +1,9 @@
-// Porta única como no Supabase: /auth/v1 -> GoTrue, /rest/v1 -> PostgREST. Só para desenvolvimento.
+// Porta única como no Supabase: /auth/v1 -> GoTrue, /rest/v1 -> PostgREST, /storage/v1 -> Storage. Só para desenvolvimento.
 import http from "node:http";
-const rotas = [["/auth/v1", 9999], ["/rest/v1", 3001]];
+const rotas = [["/auth/v1", 9999], ["/rest/v1", 3001], ["/storage/v1", 5000]];
 const cors = {
   "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, apikey, content-type, prefer, range, x-client-info, accept-profile, content-profile, x-supabase-api-version",
+  "access-control-allow-headers": "authorization, apikey, content-type, prefer, range, x-client-info, accept-profile, content-profile, x-supabase-api-version, x-upsert, cache-control",
   "access-control-allow-methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
   "access-control-expose-headers": "content-range, content-profile",
 };

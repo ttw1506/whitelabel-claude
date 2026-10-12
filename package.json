@@ -9,6 +9,7 @@
   "scripts": {
     "test": "npm run test:regras && npm run test:db",
     "test:db": "node --test supabase/tests/*.test.mjs",
+    "test:integracao": "node --test tests/integracao/*.test.mjs",
     "test:regras": "npm -w @soloplan/regras test",
     "dev:supabase": "dev/supabase-local.sh start",
     "reset:supabase": "dev/supabase-local.sh reset"

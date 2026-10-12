@@ -165,3 +165,26 @@ test("auditoria registra quem fez o quê; só admin lê", async () => {
   for (const u of [func, ia, uA]) await b.como(u, async (q) => assert.equal(await contar(q, "auditoria"), 0));
   await assert.rejects(b.como(admin, (q) => q("delete from auditoria")), /permission denied/);
 });
+
+test("custo da aplicação vira lançamento de custo e acompanha a aplicação", async () => {
+  const ap = await b.como(func, (q) => q(
+    "insert into aplicacoes (safra_id, data, tipo_operacao, produto, custo, categoria_custo) values ($1, '2026-11-20', 'Pulverização', 'Fungicida X', 1500, 'defensivos') returning id", [ids.sA]));
+  const id = ap.rows[0].id;
+  const custo = async () => (await b.como(admin, (q) => q("select categoria, descricao, valor::float, status from custos where aplicacao_id = $1", [id]))).rows;
+  assert.deepEqual(await custo(), [{ categoria: "defensivos", descricao: "Pulverização · Fungicida X", valor: 1500, status: "aprovado" }]);
+  await b.como(func, (q) => q("update aplicacoes set custo = 1800 where id = $1", [id]));
+  assert.equal((await custo())[0].valor, 1800);
+  await assert.rejects(b.como(func, (q) => q("update custos set valor = 1 where aplicacao_id = $1", [id])), /vem de uma aplicação/);
+  await b.como(func, (q) => q("update aplicacoes set custo = null where id = $1", [id]));
+  assert.deepEqual(await custo(), []);
+});
+
+test("aplicação criada pela IA gera custo em rascunho, invisível ao cliente até o admin aprovar", async () => {
+  const ap = await b.como(ia, (q) => q(
+    "insert into aplicacoes (safra_id, data, tipo_operacao, custo) values ($1, '2026-11-25', 'Adubação de cobertura', 900) returning id, status", [ids.sA]));
+  assert.equal(ap.rows[0].status, "rascunho_ia");
+  const id = ap.rows[0].id;
+  await b.como(uA, async (q) => assert.equal((await q("select count(*) from custos where aplicacao_id = $1", [id])).rows[0].count, "0"));
+  await b.como(admin, (q) => q("update aplicacoes set status = 'aprovado' where id = $1", [id]));
+  await b.como(uA, async (q) => assert.equal((await q("select count(*) from custos where aplicacao_id = $1", [id])).rows[0].count, "1"));
+});
