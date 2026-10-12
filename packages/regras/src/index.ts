@@ -9,3 +9,4 @@ export * from "./solo";
 export * from "./recomendacao";
 export * from "./ia";
 export * from "./datas";
+export * from "./car";

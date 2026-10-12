@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Plus } from "lucide-react";
-import { formatarHa, formatarNumero } from "@soloplan/regras";
+import { conferirCar, formatarHa, formatarNumero } from "@soloplan/regras";
 import { sessaoEquipe } from "@/lib/sessao";
-import { Cabeca, Trilha, Vazio } from "@/components/ui";
+import { Aviso, Cabeca, Trilha, Vazio } from "@/components/ui";
 import { BotaoExcluir } from "@/components/excluir";
 import { excluirFazenda } from "../../acoes";
 import { Talhoes } from "./talhoes";
+import { ArquivoCar } from "./arquivo-car";
 
 const ha = (n: unknown) => formatarHa(n == null ? null : Number(n));
 
@@ -20,6 +21,12 @@ export default async function Fazenda({ params }: { params: Promise<{ id: string
   if (!f) notFound();
   const cliente = f.clientes as unknown as { nome: string };
   const safras = (f.safras ?? []) as { id: string; ano_agricola: string; cultura: string; cultivar: string | null; area_ha: number | null; status: string; estadio_atual: string | null }[];
+  const somaTalhoes = (f.talhoes as { area_ha: number | null }[] | null)?.reduce((t, x) => t + Number(x.area_ha ?? 0), 0) ?? 0;
+  const car = conferirCar({
+    numero: f.car_numero, uf: f.uf, codigo_ibge: f.codigo_ibge, area_total_ha: f.area_total_ha, area_consolidada_ha: f.area_consolidada_ha,
+    app_ha: f.app_ha, reserva_legal_ha: f.reserva_legal_ha, soma_talhoes_ha: somaTalhoes || null,
+  });
+  const arquivoCar = f.car_arquivo_path ? (await supabase.storage.from("documentos").createSignedUrl(f.car_arquivo_path, 3600)).data?.signedUrl : null;
   return (
     <>
       <Trilha itens={[{ nome: "Clientes", href: "/clientes" }, { nome: cliente.nome, href: `/clientes/${f.cliente_id}` }, { nome: f.nome }]} />
@@ -93,7 +100,14 @@ export default async function Fazenda({ params }: { params: Promise<{ id: string
           <div><dt>Código IBGE</dt><dd>{f.codigo_ibge ?? "—"}</dd></div>
           <div><dt>Coordenadas da sede</dt><dd>{f.latitude != null && f.longitude != null ? `${formatarNumero(Number(f.latitude), 6)}, ${formatarNumero(Number(f.longitude), 6)}` : "—"}</dd></div>
         </dl>
-        <p className="muted" style={{ margin: "16px 0 0", fontSize: 14 }}>A conferência automática do CAR chega na etapa 6.</p>
+        <h3 style={{ margin: "20px 0 8px" }}>Conferência automática</h3>
+        {car.alertas.length === 0 && <Aviso tipo="ok">Tudo certo com os números do CAR (reserva legal em {formatarNumero(car.reserva_legal_pct, 1)}%).</Aviso>}
+        <div style={{ display: "grid", gap: 8 }}>
+          {car.alertas.map((a) => <Aviso key={a.codigo} tipo={a.nivel === "erro" ? "erro" : "atencao"}>{a.texto}</Aviso>)}
+        </div>
+        <p className="muted" style={{ fontSize: 14 }}>Sugestão automática. A decisão é do agrônomo responsável.</p>
+        {arquivoCar && <p><a href={arquivoCar} target="_blank" rel="noreferrer">Abrir arquivo do CAR enviado</a></p>}
+        <ArquivoCar fazendaId={id} clienteId={f.cliente_id} />
       </section>
     </>
   );

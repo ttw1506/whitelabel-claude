@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { lerDecimal, validarCpfCnpj, anoAgricolaValido, UFS, dataValida } from "@soloplan/regras";
+import { lerDecimal, validarCpfCnpj, anoAgricolaValido, UFS, dataValida, validarNumeroCar } from "@soloplan/regras";
 import { sessaoEquipe } from "@/lib/sessao";
 import { erroBanco, texto, valoresDe, type EstadoForm } from "@/lib/formulario";
 
@@ -57,6 +57,9 @@ export async function excluirCliente(id: string) {
 
 /* ---------- Fazendas ---------- */
 
+// Número válido é guardado padronizado (maiúsculas, sem pontos); inválido fica como digitado e a conferência avisa.
+const carNormalizado = (t: string) => { if (!t) return null; const v = validarNumeroCar(t); return v.ok ? v.valor : t; };
+
 export async function salvarFazenda(id: string | null, clienteId: string | null, _: EstadoForm, d: FormData): Promise<EstadoForm> {
   const { supabase } = await sessaoEquipe();
   const erros: Erros = {};
@@ -67,7 +70,7 @@ export async function salvarFazenda(id: string | null, clienteId: string | null,
   const uf = texto(d, "uf").toUpperCase() || null;
   if (uf && !UFS.includes(uf)) erros.uf = "UF inválida.";
   const linha = {
-    nome, municipio: texto(d, "municipio") || null, uf, codigo_ibge, car_numero: texto(d, "car_numero") || null,
+    nome, municipio: texto(d, "municipio") || null, uf, codigo_ibge, car_numero: carNormalizado(texto(d, "car_numero")),
     area_total_ha: decimal(d, "area_total_ha", erros), app_ha: decimal(d, "app_ha", erros),
     reserva_legal_ha: decimal(d, "reserva_legal_ha", erros), area_consolidada_ha: decimal(d, "area_consolidada_ha", erros),
     latitude: decimal(d, "latitude", erros, { negativo: true }), longitude: decimal(d, "longitude", erros, { negativo: true }),
