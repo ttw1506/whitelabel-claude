@@ -74,3 +74,8 @@ Teste no navegador: `node tests/e2e/etapa4.mjs qa`.
 - Depósito `documentos` com isolamento testado.
 
 Teste no navegador: `node tests/e2e/etapa5.mjs qa` (precisa de `pdftotext` instalado).
+
+## Demonstração
+
+`dev/subir-tudo.sh` sobe o ambiente inteiro. `python3 dev/gerar-fotos-demo.py /tmp/demofotos && node dev/seed-demo.mjs /tmp/demofotos > /tmp/ids.json && node tests/e2e/demo.mjs /tmp/ids.json pasta-de-fotos` apaga os dados de desenvolvimento, cria um cenário fictício limpo e tira fotos das telas.
+Contas de demonstração (senha `teste-123456`): `luciano@soloplan.local` (admin), `funcionario@soloplan.local`, `produtor1@exemplo.local`, `produtor2@exemplo.local`.
