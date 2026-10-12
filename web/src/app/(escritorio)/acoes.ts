@@ -172,3 +172,12 @@ export async function excluirSafra(id: string, fazendaId: string) {
   if (error || !count) return { erro: error ? erroBanco(error) : "Você não tem permissão para fazer isso." };
   redirect(`/fazendas/${fazendaId}`);
 }
+
+/* ---------- Pedidos dos produtores ---------- */
+
+export async function concluirPedido(id: string) {
+  const { supabase, user } = await sessaoEquipe();
+  const { error } = await supabase.from("envios_cliente").update({ status: "concluido", atendido_por: user.id, atendido_em: new Date().toISOString() }).eq("id", id);
+  if (error) return { erro: erroBanco(error) };
+  revalidatePath("/painel");
+}

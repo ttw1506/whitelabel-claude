@@ -197,3 +197,23 @@ tr.total td { font-weight: 700; border-top: 2px solid var(--ink); }
 .laudos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s4); }
 .laudos li { border: 1px solid var(--line); border-radius: var(--r2); padding: var(--s4); }
 .texto-laudo { white-space: pre-wrap; max-width: 75ch; margin: 0 0 var(--s3); }
+
+/* Cartões de safra (área do produtor) */
+.cartoes { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
+.cartao { display: grid; gap: var(--s1); padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r2); text-decoration: none; color: var(--ink); background: var(--surface); transition: border-color 160ms var(--ease); }
+.cartao:hover { border-color: var(--green); }
+.cartao strong { font: 600 20px var(--font-display); }
+.linha-perfil { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; } .linha-perfil select { width: auto; min-height: 36px; padding: 4px 8px; font-size: 14px; }
+.pendencias { list-style: none; margin: 0; padding: 0; display: grid; }
+.pendencias li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); padding: var(--s3) 0; border-bottom: 1px solid var(--line); }
+.pendencias li:last-child { border-bottom: 0; }
+.pendencias li > div { flex: 1 1 260px; min-width: 0; }
+@media (max-width: 599px) {
+  .grade { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+  .numero { padding: var(--s3); }
+  .numero strong { font-size: 22px; }
+  .so-largo { display: none; }
+}
+td.num, th.num { white-space: nowrap; }
+@media (max-width: 599px) { td, th { padding-left: var(--s2); padding-right: var(--s2); } .bloco { padding: var(--s4); } .tabela-rolagem { margin: 0 calc(-1 * var(--s4)); padding: 0 var(--s4); } }
+@media (max-width: 599px) { table { font-size: 14px; } }

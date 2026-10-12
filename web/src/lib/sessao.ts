@@ -22,3 +22,10 @@ export async function sessaoEquipe() {
   if (s.perfil.papel === "ia") redirect("/aguardando");
   return { ...s, perfil: s.perfil, eAdmin: s.perfil.papel === "admin" };
 }
+
+/** Para a área do produtor: só cliente vinculado e ativo. */
+export async function sessaoCliente() {
+  const s = await sessao();
+  if (!s.perfil?.ativo || s.perfil.papel !== "cliente" || !s.perfil.cliente_id) redirect("/");
+  return { ...s, perfil: s.perfil, clienteId: s.perfil.cliente_id };
+}

@@ -7,13 +7,13 @@ import { sair } from "../entrar/acoes";
 const NOME_PAPEL = { admin: "Administrador", funcionario: "Funcionário" } as const;
 
 export default async function LayoutEscritorio({ children }: { children: React.ReactNode }) {
-  const { perfil } = await sessaoEquipe();
+  const { perfil, eAdmin } = await sessaoEquipe();
   const papel = NOME_PAPEL[perfil.papel as keyof typeof NOME_PAPEL];
   return (
     <div className="app">
       <aside className="lateral">
         <Link href="/painel" className="marca">Solo<span>plan</span></Link>
-        <Menu variante="lateral" />
+        <Menu variante="lateral" eAdmin={eAdmin} />
         <div className="usuario">
           <div><strong>{perfil.nome}</strong><span className="muted">{papel}</span></div>
           <BotaoTema />
@@ -28,7 +28,7 @@ export default async function LayoutEscritorio({ children }: { children: React.R
             <form action={sair}><button className="btn discreto pequeno" type="submit">Sair</button></form>
           </div>
         </header>
-        <Menu variante="abas" />
+        <Menu variante="abas" eAdmin={eAdmin} />
         <main className="conteudo">{children}</main>
       </div>
     </div>

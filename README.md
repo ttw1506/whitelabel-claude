@@ -55,3 +55,13 @@ Decisões confirmadas com a Soloplan: lançamentos da equipe aparecem para o cli
 Testes: `npm test` (regras e banco), `npm run test:integracao` (isolamento das fotos, com o Supabase local rodando),
 `node tests/e2e/etapa2.mjs qa` e `node tests/e2e/etapa3.mjs qa` (passeio no navegador, com site e Supabase local rodando).
 O Supabase local agora inclui o serviço de arquivos (supabase/storage compilado em /home/user/tools/storage-api).
+
+## Etapa 4: visão do cliente (concluída)
+
+- **Meus gastos** (`/cliente/gastos`): total investido, R$/ha, safra por safra e por categoria, com filtro por safra, fazenda e categoria. Só custos aprovados do próprio produtor (regra do banco).
+- **Minhas safras** (`/cliente/safras`): fotos por estádio, ocorrências, aplicações, custos e laudos já enviados; botão **Pedir laudo parcial**.
+- **Usuários** (`/usuarios`, só admin): convite por link (a pessoa cria a própria senha em `/convite`), papel, produtor vinculado, ativar/desativar.
+  O servidor precisa de `SUPABASE_SERVICE_ROLE_KEY` (só no servidor, nunca no navegador) para criar convites.
+- **Painel**: pendências (pedidos dos produtores, laudos para revisar/enviar, rascunhos para aprovar) e fotos novas da semana.
+
+Teste no navegador: `node tests/e2e/etapa4.mjs qa`.
