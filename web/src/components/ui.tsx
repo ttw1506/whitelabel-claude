@@ -36,13 +36,13 @@ export function Aviso({ tipo, children }: { tipo: "erro" | "atencao" | "ok"; chi
 type CampoProps = {
   nome: string; rotulo: string; estado: EstadoForm; padrao?: string | number | null; dica?: string;
   tipo?: string; unidade?: string; largo?: boolean; obrigatorio?: boolean; modo?: "decimal" | "numeric" | "email" | "tel" | "text";
-  autocomplete?: string; maximo?: number;
+  autocomplete?: string; maximo?: number; prefixo?: string;
 };
 
-export function Campo({ nome, rotulo, estado, padrao, dica, tipo = "text", unidade, largo, obrigatorio, modo, autocomplete, maximo }: CampoProps) {
+export function Campo({ nome, rotulo, estado, padrao, dica, tipo = "text", unidade, largo, obrigatorio, modo, autocomplete, maximo, prefixo = "campo" }: CampoProps) {
   const erro = estado.campos?.[nome];
   const valor = estado.valores?.[nome] ?? (padrao == null ? "" : String(padrao));
-  const id = `campo-${nome}`;
+  const id = `${prefixo}-${nome}`;
   const input = (
     <input id={id} name={nome} type={tipo} defaultValue={valor} inputMode={modo} autoComplete={autocomplete ?? "off"} maxLength={maximo}
       required={obrigatorio} aria-invalid={erro ? true : undefined} aria-describedby={erro || dica ? `${id}-info` : undefined} />
@@ -56,15 +56,17 @@ export function Campo({ nome, rotulo, estado, padrao, dica, tipo = "text", unida
   );
 }
 
-export function Selecao({ nome, rotulo, estado, padrao, opcoes, vazio, obrigatorio }: {
-  nome: string; rotulo: string; estado: EstadoForm; padrao?: string | null; opcoes: { valor: string; nome: string }[]; vazio?: string; obrigatorio?: boolean;
+export function Selecao({ nome, rotulo, estado, padrao, opcoes, vazio, obrigatorio, prefixo = "campo" }: {
+  nome: string; rotulo: string; estado: EstadoForm; padrao?: string | null; opcoes: { valor: string; nome: string }[]; vazio?: string; obrigatorio?: boolean; prefixo?: string;
 }) {
   const erro = estado.campos?.[nome];
-  const id = `campo-${nome}`;
+  const id = `${prefixo}-${nome}`;
   return (
     <div className="campo">
       <label htmlFor={id}>{rotulo}{obrigatorio && <span aria-hidden> *</span>}</label>
-      <select id={id} name={nome} defaultValue={estado.valores?.[nome] ?? padrao ?? ""} aria-invalid={erro ? true : undefined}>
+      {/* A chave recria a lista quando o servidor devolve o que foi digitado: depois de um envio o React limpa o formulário
+          e a lista voltaria para a primeira opção. */}
+      <select key={estado.valores?.[nome] ?? padrao ?? ""} id={id} name={nome} defaultValue={estado.valores?.[nome] ?? padrao ?? ""} aria-invalid={erro ? true : undefined}>
         {vazio !== undefined && <option value="">{vazio}</option>}
         {opcoes.map((o) => <option key={o.valor} value={o.valor}>{o.nome}</option>)}
       </select>

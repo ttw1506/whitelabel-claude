@@ -29,3 +29,7 @@ export const formatarHa = (n: number | null | undefined) => (n == null ? "—" :
 
 const reais = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 export const formatarReais = (n: number | null | undefined) => (n == null ? "—" : reais.format(n));
+
+const semZeros = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+/** Número com só as casas decimais necessárias (ex.: doses 0,5 e 1,25). */
+export const formatarSemZeros = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? "—" : semZeros.format(n));

@@ -55,7 +55,7 @@ SQL
     parar_storage
   fi
   for f in supabase/migrations/*.sql; do psql "$PG/$DB" -q -v ON_ERROR_STOP=1 -f "$f"; done
-  psql "$PG/$DB" -q -c "grant all on all tables in schema public to service_role"
+  psql "$PG/$DB" -q -c "grant all on all tables in schema public to service_role" -c "notify pgrst, 'reload schema'"
   echo "Banco $DB pronto."
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lerDecimal, formatarNumero, formatarHa, formatarReais } from "../src/numeros";
+import { lerDecimal, formatarNumero, formatarHa, formatarReais, formatarSemZeros } from "../src/numeros";
 
 describe("lerDecimal", () => {
   it("aceita vírgula decimal e ponto de milhar", () => {
@@ -32,5 +32,15 @@ describe("formatação brasileira", () => {
   });
   it("valor ausente vira traço", () => {
     expect(formatarHa(null)).toBe("—");
+  });
+});
+
+describe("formatarSemZeros", () => {
+  it("mostra só as casas necessárias (doses)", () => {
+    expect(formatarSemZeros(0.5)).toBe("0,5");
+    expect(formatarSemZeros(1.25)).toBe("1,25");
+    expect(formatarSemZeros(2)).toBe("2");
+    expect(formatarSemZeros(1500.125)).toBe("1.500,125");
+    expect(formatarSemZeros(null)).toBe("—");
   });
 });

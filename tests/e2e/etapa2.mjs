@@ -31,7 +31,7 @@ async function entrar(p, email) {
   await p.goto(`${URL}/entrar`);
   await p.fill("#email", email);
   await p.fill("#senha", "teste-123456");
-  await Promise.all([p.waitForURL((u) => !/^\/(entrar)?$/.test(u.pathname)), p.click("button[type=submit]")]);
+  await Promise.all([p.waitForURL((u) => !/^\/(entrar)?$/.test(u.pathname), { waitUntil: "commit" }), p.click("button[type=submit]")]);
 }
 const largura = async (p) => p.evaluate(() => document.documentElement.scrollWidth);
 
@@ -109,14 +109,14 @@ try {
   await p.selectOption("#campo-estadio_atual", "V4");
   await Promise.all([p.waitForURL(/\/safras\/[0-9a-f-]{36}$/), p.click("button:has-text('Criar safra')")]);
   await p.getByText("1.200,00 ha", { exact: false }).first().waitFor();
-  assert.equal(await p.locator(".regua li[aria-current]").textContent(), "V4");
+  assert.match(await p.locator(".estadio[data-situacao='atual'] h3").textContent(), /^V4/);
   const urlSafra = p.url();
   await p.click("text=Editar");
   await p.uncheck("label:has-text('T2') input");
   await p.fill("#campo-area_ha", "");
   await Promise.all([p.waitForURL(/\/safras\/[0-9a-f-]{36}$/), p.click("button:has-text('Salvar alterações')")]);
   await p.getByText("300,00 ha", { exact: false }).first().waitFor();
-  log("safra: exige talhão, área = soma dos talhões, estádio V4 na régua, desmarcar talhão funciona");
+  log("safra: exige talhão, área = soma dos talhões, estádio V4 marcado como atual na linha do tempo, desmarcar talhão funciona");
 
   // 6. Painel mostra a safra; capturas em três larguras e tema escuro.
   for (const [w, h] of [[375, 812], [768, 1024], [1440, 900]]) {
