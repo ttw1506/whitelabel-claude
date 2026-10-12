@@ -24,11 +24,10 @@ const pendente = (s: string) => s === "rascunho_ia" || s === "em_revisao";
 export default async function Safra({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, eAdmin } = await sessaoEquipe();
-  const { data: s } = await supabase.from("safras")
-    .select("*, safra_talhoes(talhoes(id, nome, area_ha)), fazendas(id, nome, cliente_id, clientes(nome))").eq("id", id).maybeSingle();
-  if (!s) notFound();
-
-  const [fotos, ocorrencias, aplicacoes, custos, laudos, perfis] = await Promise.all([
+  // Tudo em paralelo: nenhuma consulta depende da outra (só o link das fotos depende da lista de fotos, mais abaixo).
+  const [{ data: s }, fotos, ocorrencias, aplicacoes, custos, laudos, perfis] = await Promise.all([
+    supabase.from("safras")
+      .select("*, safra_talhoes(talhoes(id, nome, area_ha)), fazendas(id, nome, cliente_id, clientes(nome))").eq("id", id).maybeSingle(),
     supabase.from("fotos").select("id, estadio, tirada_em, talhao_id, autor_id, anotacao, arquivo_path, original_path, latitude, longitude, status").eq("safra_id", id),
     supabase.from("ocorrencias").select("id, data, estadio, tipo, nome, severidade, acao_tomada, talhao_id, status").eq("safra_id", id).order("data", { ascending: false }),
     supabase.from("aplicacoes").select("id, data, tipo_operacao, produto, ingrediente_ativo, dose, dose_unidade, area_ha, custo, status, aplicacao_talhoes(talhoes(nome))").eq("safra_id", id).order("data", { ascending: false }),
@@ -36,6 +35,7 @@ export default async function Safra({ params }: { params: Promise<{ id: string }
     supabase.from("laudos_safra").select("id, tipo, conteudo, status, criado_em, aprovado_em, enviado_em").eq("safra_id", id).order("criado_em", { ascending: false }),
     supabase.from("perfis").select("usuario_id, nome"),
   ]);
+  if (!s) notFound();
 
   const f = s.fazendas as unknown as { id: string; nome: string; cliente_id: string; clientes: { nome: string } };
   const talhoes: Talhao[] = (s.safra_talhoes ?? []).map((x: { talhoes: Talhao }) => x.talhoes).sort((a: Talhao, b: Talhao) => a.nome.localeCompare(b.nome, "pt-BR", { numeric: true }));

@@ -14,10 +14,10 @@ const ha = (n: unknown) => formatarHa(n == null ? null : Number(n));
 export default async function Fazenda({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, eAdmin } = await sessaoEquipe();
-  const { data: laudosSolo } = await supabase.from("laudos_solo").select("id, data_coleta, profundidade, status, analise, talhoes(nome)").eq("fazenda_id", id).order("data_coleta", { ascending: false, nullsFirst: false });
-  const { data: f } = await supabase.from("fazendas")
+  const [{ data: laudosSolo }, { data: f }] = await Promise.all([supabase.from("laudos_solo").select("id, data_coleta, profundidade, status, analise, talhoes(nome)").eq("fazenda_id", id).order("data_coleta", { ascending: false, nullsFirst: false }),
+  supabase.from("fazendas")
     .select("*, clientes(nome), talhoes(id, nome, area_ha), safras(id, ano_agricola, cultura, cultivar, area_ha, status, estadio_atual)")
-    .eq("id", id).order("nome", { referencedTable: "talhoes" }).order("ano_agricola", { referencedTable: "safras", ascending: false }).maybeSingle();
+    .eq("id", id).order("nome", { referencedTable: "talhoes" }).order("ano_agricola", { referencedTable: "safras", ascending: false }).maybeSingle()]);
   if (!f) notFound();
   const cliente = f.clientes as unknown as { nome: string };
   const safras = (f.safras ?? []) as { id: string; ano_agricola: string; cultura: string; cultivar: string | null; area_ha: number | null; status: string; estadio_atual: string | null }[];
