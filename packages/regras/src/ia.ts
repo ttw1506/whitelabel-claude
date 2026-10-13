@@ -165,11 +165,76 @@ export function validarPreco(b: unknown): Resultado<PrecoIA> {
   return fim(erros, v);
 }
 
-export type ObservacaoIA = { tipo: "foto" | "car"; foto_id?: string; fazenda_id?: string; texto: string; incertezas: string[] };
-// Dose e recomendação de produto são do agrônomo responsável: a IA só descreve. Barrar aqui é a segunda trava (a primeira é o pedido ao modelo).
+export type ProdutoCitadoIA = { marca: string; registro: string };
+export type DoseCitadaIA = { valor: number; unidade: string; origem: string };
+export type ObservacaoIA = {
+  tipo: "foto" | "car"; foto_id?: string; fazenda_id?: string; texto: string; incertezas: string[];
+  produtos?: ProdutoCitadoIA[]; doses?: DoseCitadaIA[];
+};
+
+/**
+ * Como conferir o que a IA citou. Sem isto, produto e dose são recusados:
+ * na dúvida o sistema fecha, não abre.
+ */
+export type ConferenciaIA = {
+  /** Diz se o produto está na base local (Agrofit) e registrado para aquela cultura e alvo. */
+  conferirProduto?: (produto: ProdutoCitadoIA) => boolean;
+  /** Chaves de cálculos feitos pelo sistema que a IA pode citar como origem de uma dose. */
+  origensDeDosePermitidas?: readonly string[];
+};
+
+// A IA só descreve; quem prescreve é o agrônomo. Estas duas expressões são a segunda
+// trava (a primeira é o pedido ao modelo).
 const DOSE = /\b\d+(?:[.,]\d+)?\s*(?:l|ml|kg|g|litros?|gramas?|quilos?)\s*\/\s*(?:ha|hectare)s?\b/i;
-const RECOMENDA = /\b(?:recomendo|sugiro|indico)\s+(?:aplicar|usar|pulverizar)\b|\bdose\s+de\b/i;
-export function validarObservacao(b: unknown): Resultado<ObservacaoIA> {
+// Prescrever continua proibido mesmo com produto conferido: receituário não é gerado pela IA.
+const RECOMENDA = /\b(?:recomendo|sugiro|indico)\s+(?:aplicar|usar|pulverizar)\b/i;
+
+function validarProdutos(b: Record<string, unknown>, erros: Erros, conferencia: ConferenciaIA): ProdutoCitadoIA[] {
+  if (b.produtos == null) return [];
+  if (!Array.isArray(b.produtos) || b.produtos.length > 20) {
+    erros.produtos = "Envie até 20 produtos, em uma lista.";
+    return [];
+  }
+  const fora: string[] = [];
+  const lista: ProdutoCitadoIA[] = [];
+  for (const bruto of b.produtos) {
+    if (!ehObjeto(bruto)) { erros.produtos = "Cada produto precisa de marca e registro."; continue; }
+    const p = { marca: texto(bruto.marca).slice(0, 300), registro: texto(bruto.registro).slice(0, 40) };
+    if (!p.marca || !p.registro) { erros.produtos = "Cada produto precisa de marca e registro."; continue; }
+    if (!conferencia.conferirProduto) { fora.push(p.marca); continue; }
+    if (!conferencia.conferirProduto(p)) { fora.push(p.marca); continue; }
+    lista.push(p);
+  }
+  if (fora.length) {
+    erros.produtos = conferencia.conferirProduto
+      ? `Produto fora da base local, ou não registrado para esta cultura e alvo: ${fora.join(", ")}.`
+      : "A base local de produtos não está disponível; sem ela nenhum produto é aceito.";
+  }
+  return lista;
+}
+
+function validarDoses(b: Record<string, unknown>, erros: Erros, conferencia: ConferenciaIA): DoseCitadaIA[] {
+  if (b.doses == null) return [];
+  if (!Array.isArray(b.doses) || b.doses.length > 20) { erros.doses = "Envie até 20 doses, em uma lista."; return []; }
+  const permitidas = new Set(conferencia.origensDeDosePermitidas ?? []);
+  const lista: DoseCitadaIA[] = [];
+  for (const bruto of b.doses) {
+    if (!ehObjeto(bruto)) { erros.doses = "Cada dose precisa de valor, unidade e origem."; continue; }
+    const valor = numero(bruto.valor);
+    const unidade = texto(bruto.unidade).slice(0, 40);
+    const origem = texto(bruto.origem).slice(0, 200);
+    if (valor == null || valor <= 0 || !unidade) { erros.doses = "Cada dose precisa de valor maior que zero e unidade."; continue; }
+    if (!origem) { erros.doses = "Dose sem origem não é aceita: ligue ao cálculo do sistema ou ao campo da bula."; continue; }
+    if (!permitidas.has(origem)) {
+      erros.doses = `Dose com origem não reconhecida: ${origem}. Só valem cálculos do sistema ou campos de bula.`;
+      continue;
+    }
+    lista.push({ valor, unidade, origem });
+  }
+  return lista;
+}
+
+export function validarObservacao(b: unknown, conferencia: ConferenciaIA = {}): Resultado<ObservacaoIA> {
   if (!ehObjeto(b)) return corpoInvalido();
   const erros: Erros = {};
   const tipo = texto(b.tipo);
@@ -177,10 +242,19 @@ export function validarObservacao(b: unknown): Resultado<ObservacaoIA> {
   const idFoto = texto(b.foto_id), idFazenda = texto(b.fazenda_id);
   if (tipo === "foto" && !UUID.test(idFoto)) erros.foto_id = "Informe o id da foto.";
   if (tipo === "car" && !UUID.test(idFazenda)) erros.fazenda_id = "Informe o id da fazenda.";
+
+  const produtos = validarProdutos(b, erros, conferencia);
+  const doses = validarDoses(b, erros, conferencia);
+
   const t = texto(b.texto);
   if (t.length < 20) erros.texto = "A observação precisa ter pelo menos 20 caracteres.";
   else if (t.length > 4000) erros.texto = "A observação passa de 4.000 caracteres.";
-  else if (DOSE.test(t) || RECOMENDA.test(t)) erros.texto = "Retire dose e recomendação de produto: isso é decisão do agrônomo responsável. Descreva só o que se vê ou o que o sistema calculou.";
+  else if (RECOMENDA.test(t)) erros.texto = "Retire a recomendação de aplicar: prescrever é do agrônomo responsável.";
+  else if (DOSE.test(t) && !doses.length) {
+    // Número de dose escrito solto no texto, sem vir de um cálculo: recusado.
+    erros.texto = "Há dose no texto sem origem declarada. Toda dose precisa vir de um cálculo do sistema ou de um campo de bula.";
+  }
+
   let incertezas: string[] = [];
   if (b.incertezas != null) {
     if (!Array.isArray(b.incertezas) || b.incertezas.length > 10) erros.incertezas = "Envie até 10 incertezas, em uma lista de textos.";
@@ -188,5 +262,7 @@ export function validarObservacao(b: unknown): Resultado<ObservacaoIA> {
   }
   const v: ObservacaoIA = { tipo: tipo as ObservacaoIA["tipo"], texto: t, incertezas };
   if (tipo === "foto") v.foto_id = idFoto; else v.fazenda_id = idFazenda;
+  if (produtos.length) v.produtos = produtos;
+  if (doses.length) v.doses = doses;
   return fim(erros, v);
 }

@@ -137,4 +137,86 @@ describe("validarObservacao (foto e CAR)", () => {
     expect(validarObservacao({ ...ok, incertezas: Array(11).fill("x") }).ok).toBe(false);
     expect(validarObservacao({ ...ok, incertezas: "não é lista" }).ok).toBe(false);
   });
+
+  // Seção 5 de COMO_A_IA_FUNCIONA.md: produto só vale se vier da base local;
+  // dose só vale se vier de um cálculo do sistema ou de um campo de bula.
+  describe("produto conferido contra a base e dose ligada à origem", () => {
+    const naBase = { marca: "Fungi Max", registro: "0999" };
+    const inventado = { marca: "Produto Inventado", registro: "0000" };
+    const conferencia = {
+      conferirProduto: (p: { marca: string; registro: string }) =>
+        p.marca === naBase.marca && p.registro === naBase.registro,
+      origensDeDosePermitidas: ["calculo:calagem:v3", "bula:intervalo_seguranca"],
+    };
+
+    it("aceita produto que está na base", () => {
+      const r = validarObservacao({ ...ok, produtos: [naBase] }, conferencia);
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.valor.produtos).toEqual([naBase]);
+    });
+
+    it("recusa produto que não está na base", () => {
+      const r = validarObservacao({ ...ok, produtos: [inventado] }, conferencia);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.erros.produtos).toMatch(/fora da base/i);
+    });
+
+    it("recusa o lote inteiro se um produto for inventado", () => {
+      expect(validarObservacao({ ...ok, produtos: [naBase, inventado] }, conferencia).ok).toBe(false);
+    });
+
+    it("sem base disponível, nenhum produto passa", () => {
+      const r = validarObservacao({ ...ok, produtos: [naBase] }, {});
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.erros.produtos).toMatch(/não está disponível/i);
+    });
+
+    it("produto sem marca ou sem registro é recusado", () => {
+      expect(validarObservacao({ ...ok, produtos: [{ marca: "X", registro: "" }] }, conferencia).ok).toBe(false);
+      expect(validarObservacao({ ...ok, produtos: [{ marca: "", registro: "1" }] }, conferencia).ok).toBe(false);
+    });
+
+    it("aceita dose vinda de um cálculo do sistema", () => {
+      const r = validarObservacao({
+        ...ok, texto: "O sistema calculou 2,2 t/ha de calcário para elevar a saturação por bases.",
+        doses: [{ valor: 2.2, unidade: "t/ha", origem: "calculo:calagem:v3" }],
+      }, conferencia);
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.valor.doses?.[0].origem).toBe("calculo:calagem:v3");
+    });
+
+    it("recusa dose sem origem", () => {
+      const r = validarObservacao({ ...ok, doses: [{ valor: 1.5, unidade: "L/ha", origem: "" }] }, conferencia);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.erros.doses).toMatch(/sem origem/i);
+    });
+
+    it("recusa dose com origem inventada pelo modelo", () => {
+      const r = validarObservacao({
+        ...ok, doses: [{ valor: 1.5, unidade: "L/ha", origem: "minha experiencia" }],
+      }, conferencia);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.erros.doses).toMatch(/origem não reconhecida/i);
+    });
+
+    it("dose escrita solta no texto, sem declarar, continua recusada", () => {
+      const r = validarObservacao({ ...ok, texto: "Aplicar 1,5 L/ha resolve o problema." }, conferencia);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.erros.texto).toMatch(/sem origem declarada/i);
+    });
+
+    it("prescrever continua proibido mesmo com produto e dose conferidos", () => {
+      const r = validarObservacao({
+        ...ok, texto: "Recomendo aplicar o produto conferido na área toda ainda esta semana.",
+        produtos: [naBase], doses: [{ valor: 1.5, unidade: "L/ha", origem: "calculo:calagem:v3" }],
+      }, conferencia);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.erros.texto).toMatch(/agr[ôo]nomo/i);
+    });
+
+    it("observação sem produto e sem dose segue valendo, como antes", () => {
+      expect(validarObservacao(ok, conferencia).ok).toBe(true);
+      expect(validarObservacao(ok).ok).toBe(true);
+    });
+  });
 });
