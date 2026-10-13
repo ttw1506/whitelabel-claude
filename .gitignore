@@ -7,3 +7,5 @@ dev/.keys
 supabase/.temp/
 
 graphify-out/
+
+supabase/.branches/

@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "pg": "8.13.1",
+    "pg-copy-streams": "^7.0.0",
     "playwright-core": "^1.55.0",
     "supabase": "2.20.5"
   },
