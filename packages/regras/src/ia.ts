@@ -164,3 +164,29 @@ export function validarPreco(b: unknown): Resultado<PrecoIA> {
   if (data) v.data = data;
   return fim(erros, v);
 }
+
+export type ObservacaoIA = { tipo: "foto" | "car"; foto_id?: string; fazenda_id?: string; texto: string; incertezas: string[] };
+// Dose e recomendação de produto são do agrônomo responsável: a IA só descreve. Barrar aqui é a segunda trava (a primeira é o pedido ao modelo).
+const DOSE = /\b\d+(?:[.,]\d+)?\s*(?:l|ml|kg|g|litros?|gramas?|quilos?)\s*\/\s*(?:ha|hectare)s?\b/i;
+const RECOMENDA = /\b(?:recomendo|sugiro|indico)\s+(?:aplicar|usar|pulverizar)\b|\bdose\s+de\b/i;
+export function validarObservacao(b: unknown): Resultado<ObservacaoIA> {
+  if (!ehObjeto(b)) return corpoInvalido();
+  const erros: Erros = {};
+  const tipo = texto(b.tipo);
+  if (tipo !== "foto" && tipo !== "car") erros.tipo = 'Use "foto" ou "car".';
+  const idFoto = texto(b.foto_id), idFazenda = texto(b.fazenda_id);
+  if (tipo === "foto" && !UUID.test(idFoto)) erros.foto_id = "Informe o id da foto.";
+  if (tipo === "car" && !UUID.test(idFazenda)) erros.fazenda_id = "Informe o id da fazenda.";
+  const t = texto(b.texto);
+  if (t.length < 20) erros.texto = "A observação precisa ter pelo menos 20 caracteres.";
+  else if (t.length > 4000) erros.texto = "A observação passa de 4.000 caracteres.";
+  else if (DOSE.test(t) || RECOMENDA.test(t)) erros.texto = "Retire dose e recomendação de produto: isso é decisão do agrônomo responsável. Descreva só o que se vê ou o que o sistema calculou.";
+  let incertezas: string[] = [];
+  if (b.incertezas != null) {
+    if (!Array.isArray(b.incertezas) || b.incertezas.length > 10) erros.incertezas = "Envie até 10 incertezas, em uma lista de textos.";
+    else incertezas = b.incertezas.map((x) => texto(x).slice(0, 300)).filter(Boolean);
+  }
+  const v: ObservacaoIA = { tipo: tipo as ObservacaoIA["tipo"], texto: t, incertezas };
+  if (tipo === "foto") v.foto_id = idFoto; else v.fazenda_id = idFazenda;
+  return fim(erros, v);
+}

@@ -62,6 +62,16 @@ export function openapi(urlBase: string) {
           valores: { type: "object", description: "ph, p, k, ca, mg, al, hal, mo, argila (obrigatórios); s, b, cu, fe, mn, zn (opcionais)", additionalProperties: n },
         }, ["fazenda_id", "profundidade", "valores"]),
         responses: { "201": { description: "Criado como rascunho_ia." }, ...erros } } },
+      "/api/ia/fotos/{id}/arquivo": { get: {
+        operationId: "baixar_foto_para_analise", summary: "Link temporário (10 minutos) da foto, para a IA analisar.",
+        parameters: [{ ...idSafra, description: "Id da foto" }], responses: { "200": { description: "url, estádio e cultura." }, "404": { description: "Foto não encontrada." }, ...erros } } },
+      "/api/ia/fazendas/{id}/car": { get: {
+        operationId: "ler_conferencia_do_car", summary: "Resultado da conferência do CAR calculado pelo sistema (a IA só explica).",
+        parameters: [{ ...idSafra, description: "Id da fazenda" }], responses: { "200": { description: "Alertas e situação." }, "404": { description: "Fazenda não encontrada." }, ...erros } } },
+      "/api/ia/observacoes": { post: {
+        operationId: "enviar_observacao", summary: "Observação sobre uma foto ou o CAR. Sem dose nem recomendação de produto; é rascunho até o administrador aprovar.",
+        requestBody: corpo({ tipo: { type: "string", enum: ["foto", "car"] }, foto_id: t, fazenda_id: t, texto: t, incertezas: { type: "array", items: t } }, ["tipo", "texto"]),
+        responses: { "201": { description: "Criada como rascunho_ia." }, ...erros } } },
       "/api/ia/precos": { post: {
         operationId: "registrar_preco_do_dia", summary: "Registra a cotação do dia (soja, milho, boi) com a fonte.",
         requestBody: corpo({ produto: { type: "string", enum: ["soja", "milho", "boi"] }, valor: n, unidade: t, fonte: t, data: { type: "string", format: "date" } }, ["produto", "valor", "unidade", "fonte"]),

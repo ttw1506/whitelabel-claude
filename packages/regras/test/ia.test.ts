@@ -103,3 +103,38 @@ describe("validarPreco", () => {
     expect(validarPreco({ produto: "milho", valor: 0, unidade: "R$/saca", fonte: "x" })).toMatchObject({ ok: false });
   });
 });
+
+import { validarObservacao } from "../src/ia";
+describe("validarObservacao (foto e CAR)", () => {
+  const id = "11111111-2222-4333-8444-555555555555";
+  const ok = { tipo: "foto", foto_id: id, texto: "Folhas com manchas amareladas nas bordas, concentradas na parte baixa da planta.", incertezas: ["Foto escura", "Não vejo o caule"] };
+  it("aceita observação de foto com incertezas", () => {
+    const r = validarObservacao(ok);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.valor.incertezas).toHaveLength(2);
+  });
+  it("aceita explicação de CAR ligada à fazenda", () => {
+    expect(validarObservacao({ tipo: "car", fazenda_id: id, texto: "A reserva legal está em 10% da área total, abaixo do mínimo de 20%." }).ok).toBe(true);
+  });
+  it("exige o id certo para cada tipo", () => {
+    expect(validarObservacao({ ...ok, foto_id: undefined }).ok).toBe(false);
+    expect(validarObservacao({ tipo: "car", texto: ok.texto }).ok).toBe(false);
+    expect(validarObservacao({ ...ok, foto_id: "abc" }).ok).toBe(false);
+  });
+  it("recusa texto curto, longo demais e tipo desconhecido", () => {
+    expect(validarObservacao({ ...ok, texto: "curto" }).ok).toBe(false);
+    expect(validarObservacao({ ...ok, texto: "a".repeat(4001) }).ok).toBe(false);
+    expect(validarObservacao({ ...ok, tipo: "outro" }).ok).toBe(false);
+  });
+  it("recusa dose e recomendação de produto (isso é do agrônomo)", () => {
+    for (const t of ["Recomendo aplicar 1,5 L/ha de fungicida nesta área toda agora.", "Use a dose de 200 g/ha do produto indicado.", "Aplicar 500 mL/ha resolve o problema das folhas."]) {
+      const r = validarObservacao({ ...ok, texto: t });
+      expect(r.ok, t).toBe(false);
+      if (!r.ok) expect(r.erros.texto).toMatch(/dose|produto|agr[ôo]nomo/i);
+    }
+  });
+  it("limita as incertezas", () => {
+    expect(validarObservacao({ ...ok, incertezas: Array(11).fill("x") }).ok).toBe(false);
+    expect(validarObservacao({ ...ok, incertezas: "não é lista" }).ok).toBe(false);
+  });
+});

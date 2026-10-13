@@ -25,7 +25,7 @@ const cliente = await um(adm.from("clientes").insert({ nome: "Produtor Worker" }
 const fazenda = await um(adm.from("fazendas").insert({ cliente_id: cliente.id, nome: "Faz Worker" }).select("id").single());
 const safra = await um(adm.from("safras").insert({ fazenda_id: fazenda.id, ano_agricola: "2026/27", cultura: "Milho" }).select("id").single());
 const t = await um(adm.from("tarefas_ia").insert({ tipo: "gerar_laudo_final", cliente_id: cliente.id, referencia_id: safra.id }).select("id").single());
-const t2 = await um(adm.from("tarefas_ia").insert({ tipo: "analisar_foto", cliente_id: cliente.id }).select("id").single());
+const t2 = await um(adm.from("tarefas_ia").insert({ tipo: "extrair_laudo_solo", cliente_id: cliente.id }).select("id").single());
 
 let prompt = "";
 const falso = createServer((req, res) => {
@@ -42,7 +42,7 @@ assert.match(prompt, /Milho 2026\/27/);
 const laudos = await um(adm.from("laudos_safra").select("tipo, status, conteudo").eq("safra_id", safra.id));
 assert.equal(laudos.length, 1); assert.equal(laudos[0].status, "rascunho_ia"); assert.equal(laudos[0].tipo, "final");
 assert.equal((await um(adm.from("tarefas_ia").select("status").eq("id", t.id).single())).status, "concluida");
-// a tarefa de foto não é do tipo que o worker pega: continua na fila
+// a tarefa de ler laudo de solo não é do tipo que o worker pega: continua na fila
 assert.equal((await um(adm.from("tarefas_ia").select("status").eq("id", t2.id).single())).status, "pendente");
 await um(adm.from("chaves_ia").update({ revogada_em: new Date().toISOString() }).eq("hash", hash));
-console.log("✓ worker: laudo final voltou como rascunho_ia e a tarefa foi concluída; tarefa de outro tipo ficou na fila");
+console.log("✓ worker: laudo final voltou como rascunho_ia e a tarefa foi concluída; tarefa de tipo que o programa ainda não faz ficou na fila");

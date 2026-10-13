@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { sessaoEquipe } from "@/lib/sessao";
 import { Cabeca, Aviso } from "@/components/ui";
 import { BotaoAcao } from "@/components/botao-acao";
 import { dataBr, dataHoraBr } from "@/lib/datas";
-import { cancelarTarefa, criarUsuarioIA, decidirPreco, revogarChave } from "./acoes";
+import { cancelarTarefa, criarUsuarioIA, decidirObservacao, decidirPreco, revogarChave } from "./acoes";
 import { NOME_TIPO } from "@/lib/ia/nomes";
 import { FormChave, FormTarefa } from "./formularios";
 
@@ -15,12 +16,13 @@ const NOME_STATUS_PRECO: Record<string, string> = { rascunho_ia: "Rascunho da IA
 
 export default async function PaginaIA() {
   const { supabase, eAdmin } = await sessaoEquipe();
-  const [ia, chaves, tarefas, precos, clientes] = await Promise.all([
+  const [ia, chaves, tarefas, precos, clientes, observacoes] = await Promise.all([
     supabase.from("perfis").select("usuario_id").eq("papel", "ia").eq("ativo", true).limit(1),
     eAdmin ? supabase.from("chaves_ia").select("id, nome, prefixo, criada_em, revogada_em, ultimo_uso_em").order("criada_em", { ascending: false }) : Promise.resolve({ data: [] }),
     supabase.from("tarefas_ia").select("id, tipo, status, tentativas, erro, criada_em, concluida_em, clientes(nome)").order("criada_em", { ascending: false }).limit(30),
     supabase.from("precos_dia").select("id, produto, valor, unidade, fonte, data, status").order("data", { ascending: false }).order("criado_em", { ascending: false }).limit(20),
     supabase.from("clientes").select("id, nome").order("nome"),
+    supabase.from("observacoes_ia").select("id, tipo, texto, incertezas, status, criado_em, fotos(estadio, safra_id), fazendas(nome)").in("status", ["rascunho_ia", "em_revisao"]).order("criado_em", { ascending: false }).limit(30),
   ]);
   const temUsuarioIA = (ia.data?.length ?? 0) > 0;
   return (
@@ -79,6 +81,33 @@ export default async function PaginaIA() {
             {!tarefas.data?.length && <tr><td colSpan={5} className="muted">Nenhuma tarefa ainda.</td></tr>}
           </tbody>
         </table></div>
+      </section>
+
+      <section className="bloco" aria-labelledby="t-obs">
+        <div className="bloco-cab"><h2 id="t-obs">Observações da IA para revisar</h2></div>
+        <p className="muted" style={{ marginTop: 0 }}>A IA só descreve o que vê ou explica o que o sistema calculou. Ela não indica produto nem dose: isso é do agrônomo.</p>
+        <div style={{ display: "grid", gap: 12 }}>
+          {(observacoes.data ?? []).map((o) => {
+            const foto = o.fotos as unknown as { estadio: string; safra_id: string } | null;
+            const fazenda = o.fazendas as unknown as { nome: string } | null;
+            const incertezas = (o.incertezas as string[] | null) ?? [];
+            return (
+              <article key={o.id} className="aviso atencao" style={{ display: "grid", gap: 6 }}>
+                <strong>{o.tipo === "foto" ? `Foto (estádio ${foto?.estadio ?? "?"})` : `CAR da fazenda ${fazenda?.nome ?? ""}`} · {dataHoraBr(o.criado_em)}</strong>
+                <span>{o.texto}</span>
+                {incertezas.length > 0 && <span className="muted" style={{ fontSize: 14 }}>Não dá para saber: {incertezas.join("; ")}.</span>}
+                {o.tipo === "foto" && foto && <Link href={`/safras/${foto.safra_id}`}>Abrir a safra</Link>}
+                {eAdmin && (
+                  <span className="acoes">
+                    <BotaoAcao acao={decidirObservacao.bind(null, o.id, true)} rotulo="Aprovar" rotuloPendente="…" classe="btn principal pequeno" />
+                    <BotaoAcao acao={decidirObservacao.bind(null, o.id, false)} rotulo="Descartar" rotuloPendente="…" classe="btn discreto pequeno" />
+                  </span>
+                )}
+              </article>
+            );
+          })}
+          {!observacoes.data?.length && <p className="muted">Nada para revisar.</p>}
+        </div>
       </section>
 
       <section className="bloco" aria-labelledby="t-precos">

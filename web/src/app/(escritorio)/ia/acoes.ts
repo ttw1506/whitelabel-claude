@@ -78,3 +78,13 @@ export async function decidirPreco(id: string, aprovar: boolean): Promise<{ erro
   revalidatePath("/ia");
   return {};
 }
+
+export async function decidirObservacao(id: string, aprovar: boolean): Promise<{ erro?: string }> {
+  const { supabase } = await sessaoEquipe();
+  const { error } = aprovar
+    ? await supabase.from("observacoes_ia").update({ status: "aprovado" }).eq("id", id)
+    : await supabase.from("observacoes_ia").delete().eq("id", id);
+  if (error) return { erro: erroBanco(error) };
+  revalidatePath("/ia");
+  return {};
+}
