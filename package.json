@@ -7,7 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "npm run test:regras && npm run test:db",
+    "test": "npm run test:regras && npm run test:ia && npm run test:db",
+    "test:ia": "node --test ia-local/*.test.mjs",
     "test:db": "node --test supabase/tests/*.test.mjs",
     "test:integracao": "node --test tests/integracao/*.test.mjs",
     "test:regras": "npm -w @soloplan/regras test",

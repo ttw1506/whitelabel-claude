@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash, randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 
@@ -32,20 +33,30 @@ const foto1 = await novaFoto(), foto2 = await novaFoto();
 const tarefa = async (tipo, referencia_id) => (await um(adm.from("tarefas_ia").insert({ tipo, referencia_id, cliente_id: cliente.id, max_tentativas: 1 }).select("id").single())).id;
 const tFoto = await tarefa("analisar_foto", foto1), tCar = await tarefa("conferir_car", fazenda.id);
 
+// A foto responde nas partes A, B e C (COMO_A_IA_FUNCIONA.md, seção 4); o CAR segue no formato antigo.
+const FOTO_BOA = {
+  o_que_se_ve: "Folhas com manchas amareladas nas bordas, mais fortes na parte baixa da planta.",
+  inconclusivo: false,
+  hipoteses: [{ tipo: "doenca", nome: "Mancha foliar", apoia: "Lesões nas bordas das folhas baixeiras.",
+    impede_confirmar: "A foto não mostra o verso da folha.", confianca: "baixa",
+    motivo_confianca: "O sintoma é inespecífico nesta imagem." }],
+  o_que_falta: ["Foto escura", "Não vejo o caule"],
+};
 let pedidos = [], modo = "bom";
 const falso = createServer((req, res) => {
   let b = ""; req.on("data", (d) => (b += d)); req.on("end", () => {
     const p = JSON.parse(b); pedidos.push(p);
     const resposta = modo === "dose"
-      ? JSON.stringify({ observacao: "Folhas com manchas. Recomendo aplicar 1,5 L/ha de fungicida em toda a área agora.", incertezas: [] })
+      ? JSON.stringify({ ...FOTO_BOA, o_que_se_ve: "Folhas com manchas. Recomendo aplicar 1,5 L/ha de fungicida em toda a área agora." })
       : p.images
-        ? JSON.stringify({ observacao: "Folhas com manchas amareladas nas bordas, mais fortes na parte baixa da planta.", incertezas: ["Foto escura", "Não vejo o caule"] })
+        ? JSON.stringify(FOTO_BOA)
         : JSON.stringify({ observacao: "A reserva legal está em 10% da área total, abaixo do mínimo de 20%. Os números de área também somam mais que o total.", incertezas: [] });
     res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ response: resposta }));
   });
 }).listen(0);
 await new Promise((r) => falso.once("listening", r));
-const rodar = async () => (await promisify(execFile)("node", [new URL("../../ia-local/worker.mjs", import.meta.url).pathname, "--uma-vez"], {
+// fileURLToPath e não .pathname: no Windows o pathname vem como "/C:/..." e vira "C:\C:\...".
+const rodar = async () => (await promisify(execFile)("node", [fileURLToPath(new URL("../../ia-local/worker.mjs", import.meta.url)), "--uma-vez"], {
   env: { ...process.env, SOLOPLAN_URL: APP, SOLOPLAN_CHAVE: chave, OLLAMA_URL: `http://127.0.0.1:${falso.address().port}` },
 })).stdout;
 
@@ -55,10 +66,17 @@ const f = obs.find((x) => x.tipo === "foto"), c = obs.find((x) => x.tipo === "ca
 assert.ok(f && c, "uma observação de foto e uma de CAR");
 assert.equal(f.status, "rascunho_ia"); assert.equal(c.status, "rascunho_ia");
 assert.deepEqual(f.incertezas, ["Foto escura", "Não vejo o caule"]);
+// Partes A, B e C montadas pelo ia-local/foto.mjs, com confiança qualitativa e sem porcentagem.
+assert.match(f.texto, /^A\. O que se vê/); assert.match(f.texto, /B\. Hipóteses/); assert.match(f.texto, /C\. O que falta/);
+assert.match(f.texto, /Mancha foliar — doença · confiança baixa/);
+assert.doesNotMatch(f.texto, /\d\s*%/, "confiança nunca em porcentagem");
+assert.match(f.texto, /Não é receituário\.$/);
 const pedidoFoto = pedidos.find((p) => p.images), pedidoCar = pedidos.find((p) => !p.images);
-assert.match(pedidoFoto.model, /vl/i, "foto vai para o modelo de imagem");
+assert.equal(pedidoFoto.model, process.env.OLLAMA_MODELO_VISAO || "gemma4:e4b-it-qat", "foto vai para o modelo de visão configurado");
+assert.equal(pedidoFoto.format?.properties?.hipoteses?.maxItems, 3, "o esquema limita a 3 hipóteses");
 assert.ok(pedidoFoto.images[0].length > 10, "a imagem vai em base64");
 assert.match(pedidoFoto.prompt, /Soja/); assert.match(pedidoFoto.prompt, /NÃO cite produto/);
+assert.match(pedidoFoto.prompt, /NUNCA use porcentagem/);
 assert.match(pedidoCar.prompt, /Reserva legal/i, "o CAR é explicado a partir do que o sistema calculou");
 for (const t of [tFoto, tCar]) assert.equal((await um(adm.from("tarefas_ia").select("status").eq("id", t).single())).status, "concluida");
 console.log("✓ foto e CAR: observações viram rascunho_ia, a foto vai ao modelo de imagem, o CAR é explicado com o cálculo do sistema");

@@ -2,12 +2,15 @@
 // Não precisa instalar nada além do Node 20+ e do Ollama. Veja ia-local/LEIA-ME.md.
 //
 //   SOLOPLAN_URL=https://app.exemplo.com.br SOLOPLAN_CHAVE=sp_ia_... node ia-local/worker.mjs
-//   Opções: OLLAMA_URL (padrão http://127.0.0.1:11434)  OLLAMA_MODELO (padrão qwen3:8b)  OLLAMA_MODELO_VISAO (padrão qwen3-vl:8b)  --uma-vez (processa a fila e sai)
+//   Opções: OLLAMA_URL (padrão http://127.0.0.1:11434)  OLLAMA_MODELO  OLLAMA_MODELO_VISAO  --uma-vez (processa a fila e sai)
+import { montarPromptFoto, formatarObservacaoFoto, ESQUEMA_FOTO } from "./foto.mjs";
+
 const BASE = (process.env.SOLOPLAN_URL || "").replace(/\/$/, "");
 const CHAVE = process.env.SOLOPLAN_CHAVE || "";
 const OLLAMA = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
-const MODELO = process.env.OLLAMA_MODELO || "qwen3:8b";
-const MODELO_VISAO = process.env.OLLAMA_MODELO_VISAO || "qwen3-vl:8b";
+// Modelo do escritório conforme COMO_A_IA_FUNCIONA.md, seção 2. Faz texto e imagem.
+const MODELO = process.env.OLLAMA_MODELO || "gemma4:e4b-it-qat";
+const MODELO_VISAO = process.env.OLLAMA_MODELO_VISAO || "gemma4:e4b-it-qat";
 const UMA_VEZ = process.argv.includes("--uma-vez");
 const PAUSA_MS = Number(process.env.PAUSA_SEGUNDOS || 20) * 1000;
 
@@ -19,8 +22,11 @@ const chamar = (caminho, opcoes = {}) => fetch(`${BASE}/api/ia${caminho}`, {
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toLocaleTimeString("pt-BR"), ...a);
 
-async function perguntar(prompt, { imagens, modelo = MODELO, json = false } = {}) {
-  const corpo = { model: modelo, prompt, stream: false, ...(imagens ? { images: imagens } : {}), ...(json ? { format: "json" } : {}) };
+// formato: "json" (JSON solto) ou um esquema, que prende o modelo aos campos pedidos.
+// think:false porque o bloco de raciocínio atrapalha a saída estruturada e é bem mais lento.
+async function perguntar(prompt, { imagens, modelo = MODELO, json = false, formato = null } = {}) {
+  const corpo = { model: modelo, prompt, stream: false, ...(imagens ? { images: imagens } : {}),
+    ...(formato ? { format: formato, think: false } : json ? { format: "json" } : {}) };
   const r = await fetch(`${OLLAMA}/api/generate`, { method: "POST", body: JSON.stringify(corpo) });
   if (!r.ok) throw new Error(`Ollama respondeu ${r.status}. Ele está ligado e o modelo "${modelo}" instalado?`);
   const { response } = await r.json();
@@ -79,12 +85,10 @@ async function processar(tarefa) {
     const img = await fetch(url);
     if (!img.ok) throw new Error(`Não consegui baixar a foto (${img.status}).`);
     const b64 = Buffer.from(await img.arrayBuffer()).toString("base64");
-    const prompt = [
-      `Você ajuda um agrônomo em Quirinópolis-GO. Esta é uma foto de lavoura${cultura ? ` de ${cultura}` : ""}${estadio ? `, estádio ${estadio}` : ""}.`,
-      REGRAS,
-      'Responda em JSON: {"observacao": "o que se vê, em até 6 frases", "incertezas": ["o que não dá para saber pela foto"]}',
-    ].join("\n\n");
-    const { texto, incertezas } = lerObservacao(await perguntar(prompt, { imagens: [b64], modelo: MODELO_VISAO, json: true }));
+    // Partes A, B e C da seção 4. D, E e F dependem da base Agrofit e da análise de solo.
+    const bruto = await perguntar(montarPromptFoto({ cultura, estadio }),
+      { imagens: [b64], modelo: MODELO_VISAO, formato: ESQUEMA_FOTO });
+    const { texto, incertezas } = formatarObservacaoFoto(bruto);
     return { observacao_id: await enviarObservacao({ tipo: "foto", foto_id: tarefa.referencia_id, texto, incertezas }) };
   }
   if (tarefa.tipo === "conferir_car") {
