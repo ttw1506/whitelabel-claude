@@ -2,9 +2,11 @@
 import pg from "pg";
 import { readFileSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const URL_ADMIN = process.env.TEST_DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5432/postgres";
-const raiz = new URL("..", import.meta.url).pathname;
+// fileURLToPath e não .pathname: no Windows o pathname vem como "/C:/..." e vira "C:\C:\...".
+const raiz = fileURLToPath(new URL("..", import.meta.url));
 
 export async function criarBanco() {
   const nome = `soloplan_teste_${process.pid}_${Date.now()}`;

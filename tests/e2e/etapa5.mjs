@@ -5,13 +5,15 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 const APP = process.env.APP_URL || "http://127.0.0.1:3000";
 const SUPABASE = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
 const QA = process.argv[2] || "qa";
 const CHROME = process.env.CHROME_PATH || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
-const PDF_LAB = new URL("./fotos/laboratorio-exemplo.pdf", import.meta.url).pathname;
+// fileURLToPath e não .pathname: no Windows o pathname vem como "/C:/..." e vira "C:\C:\...".
+const PDF_LAB = fileURLToPath(new URL("./fotos/laboratorio-exemplo.pdf", import.meta.url));
 const chaves = Object.fromEntries(readFileSync(new URL("../../dev/.keys", import.meta.url), "utf8").trim().split("\n").map((l) => l.split("=")));
 const opcoes = { auth: { persistSession: false, autoRefreshToken: false } };
 const servico = createClient(SUPABASE, chaves.SERVICE_ROLE_KEY, opcoes);

@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 
@@ -32,7 +33,8 @@ const falso = createServer((req, res) => {
   let b = ""; req.on("data", (d) => (b += d)); req.on("end", () => { prompt = JSON.parse(b).prompt; res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ response: "Laudo final de teste: lavoura em boa condição. Sugestão técnica. A recomendação final é do agrônomo responsável." })); });
 }).listen(0);
 await new Promise((r) => falso.once("listening", r));
-const saida = (await promisify(execFile)("node", [new URL("../../ia-local/worker.mjs", import.meta.url).pathname, "--uma-vez"], {
+// fileURLToPath e não .pathname: no Windows o pathname vem como "/C:/..." e vira "C:\C:\...".
+const saida = (await promisify(execFile)("node", [fileURLToPath(new URL("../../ia-local/worker.mjs", import.meta.url)), "--uma-vez"], {
   env: { ...process.env, SOLOPLAN_URL: APP, SOLOPLAN_CHAVE: chave, OLLAMA_URL: `http://127.0.0.1:${falso.address().port}` },
 })).stdout;
 falso.close();
