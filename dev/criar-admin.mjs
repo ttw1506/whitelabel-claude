@@ -1,6 +1,7 @@
-// Cria (ou garante) a conta de administrador no Supabase LOCAL, sem apagar nada.
+// Cria (ou garante) uma conta no Supabase LOCAL, sem apagar nada.
 // Uso: SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node dev/criar-admin.mjs email "Nome" [senha]
 // Sem senha, usa a de demonstracao do projeto (teste-123456): troque na primeira entrada.
+// PAPEL=admin (padrao) | funcionario | nenhum  (nenhum = conta sem vinculo, cai em /aguardando)
 import { createClient } from "@supabase/supabase-js";
 
 const [email, nome, senhaArg] = process.argv.slice(2);
@@ -26,11 +27,18 @@ if (usuario) {
   console.log("conta criada:", email);
 }
 
-// O perfil pode ou nao ter sido criado por gatilho; garante e promove a admin.
-await um(servico.from("perfis").upsert(
-  { usuario_id: usuario.id, nome, papel: "admin", cliente_id: null, ativo: true },
-  { onConflict: "usuario_id" },
-));
+// O perfil pode ou nao ter sido criado por gatilho; garante e aplica o papel pedido.
+const papel = process.env.PAPEL || "admin";
+if (!["admin", "funcionario", "nenhum"].includes(papel)) {
+  console.error('PAPEL deve ser admin, funcionario ou nenhum.');
+  process.exit(1);
+}
+if (papel !== "nenhum") {
+  await um(servico.from("perfis").upsert(
+    { usuario_id: usuario.id, nome, papel, cliente_id: null, ativo: true },
+    { onConflict: "usuario_id" },
+  ));
+}
 const perfil = await um(servico.from("perfis").select("nome, papel, ativo").eq("usuario_id", usuario.id).single());
 console.log("perfil:", perfil);
 console.log(senhaArg ? "senha: a que voce informou" : "senha: a de demonstracao do projeto (teste-123456) - troque ao entrar");
