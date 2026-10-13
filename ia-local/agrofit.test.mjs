@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { importar, abrir, normalizar, lerLinhaCsv, COLUNAS } from "./agrofit.mjs";
+import { importar, abrir, normalizar, lerLinhaCsv, extrairGrupoQuimico, COLUNAS } from "./agrofit.mjs";
 
 const CABECALHO = COLUNAS.join(";");
 const linha = (o) => COLUNAS.map((c) => o[c] ?? "").join(";");
@@ -13,17 +13,17 @@ const linha = (o) => COLUNAS.map((c) => o[c] ?? "").join(";");
 const CSV = [
   CABECALHO,
   linha({ NR_REGISTRO: "1215", MARCA_COMERCIAL: "2,4-D 806 RN", FORMULACAO: "SL",
-    INGREDIENTE_ATIVO: "2,4-D-dimetilamina (806 g/L)", TITULAR_DE_REGISTRO: "Empresa A",
+    INGREDIENTE_ATIVO: "2,4-D-dimetilamina (ácido ariloxialcanóico) (806 g/L)", TITULAR_DE_REGISTRO: "Empresa A",
     CLASSE: "Herbicida", MODO_DE_ACAO: "sistêmico e seletivo", CULTURA: "Soja",
     PRAGA_NOME_CIENTIFICO: "Amaranthus deflexus", PRAGA_NOME_COMUM: "bredo; caruru",
     CLASSE_TOXICOLOGICA: "III", CLASSE_AMBIENTAL: "II", ORGANICOS: "Não", SITUACAO: "TRUE" }),
   linha({ NR_REGISTRO: "0999", MARCA_COMERCIAL: "Fungi Max", FORMULACAO: "SC",
-    INGREDIENTE_ATIVO: "azoxistrobina (200 g/L)", TITULAR_DE_REGISTRO: "Empresa B",
+    INGREDIENTE_ATIVO: "azoxistrobina (estrobilurina) (200 g/L)", TITULAR_DE_REGISTRO: "Empresa B",
     CLASSE: "Fungicida", MODO_DE_ACAO: "", CULTURA: "Soja",
     PRAGA_NOME_CIENTIFICO: "Phakopsora pachyrhizi", PRAGA_NOME_COMUM: "ferrugem-asiática",
     CLASSE_TOXICOLOGICA: "IV", CLASSE_AMBIENTAL: "III", ORGANICOS: "Não", SITUACAO: "TRUE" }),
   linha({ NR_REGISTRO: "0777", MARCA_COMERCIAL: "Milho Protege", FORMULACAO: "WG",
-    INGREDIENTE_ATIVO: "atrazina (900 g/kg)", TITULAR_DE_REGISTRO: "Empresa C",
+    INGREDIENTE_ATIVO: "atrazina (triazina) (900 g/kg)", TITULAR_DE_REGISTRO: "Empresa C",
     CLASSE: "Herbicida", MODO_DE_ACAO: "sistêmico", CULTURA: "Milho",
     PRAGA_NOME_CIENTIFICO: "Brachiaria plantaginea", PRAGA_NOME_COMUM: "papuã",
     CLASSE_TOXICOLOGICA: "III", CLASSE_AMBIENTAL: "II", ORGANICOS: "Não", SITUACAO: "TRUE" }),
@@ -94,7 +94,8 @@ test("a procedência vai junto, com data e as limitações", () => {
   assert.equal(p.baixado_em, "2026-10-13");
   assert.match(p.fonte, /MAPA/);
   assert.equal(p.sem_bula_e_intervalo_seguranca, "sim");
-  assert.equal(p.sem_grupo_resistencia, "sim", "não dá para rotacionar mecanismo com esta base");
+  assert.match(p.grupo_quimico, /NÃO é o código oficial HRAC\/IRAC\/FRAC/);
+  assert.match(p.so_registros_ativos, /cancelado/);
 });
 
 test("lista as culturas da base", () => {
@@ -114,6 +115,63 @@ test("CSV com aspas e ponto e vírgula dentro do campo", () => {
 test("normalizar tira acento e baixa a caixa", () => {
   assert.equal(normalizar("Ferrugem-Asiática"), "ferrugem-asiatica");
   assert.equal(normalizar(null), "");
+});
+
+test("extrai o grupo químico de dentro do ingrediente ativo", () => {
+  assert.equal(extrairGrupoQuimico("glifosato (glicina substituída) (480 g/L)"), "glicina substituída");
+  assert.equal(extrairGrupoQuimico("Azoxistrobina (estrobilurina) (200 g/L)"), "estrobilurina");
+  assert.equal(extrairGrupoQuimico("etefom (etileno (precursor de)) (720 g/L)"), "etileno (precursor de)",
+    "parênteses dentro de parênteses");
+  assert.equal(extrairGrupoQuimico("tebuconazol (triazol) (200 g/L) + trifloxistrobina (estrobilurina) (100 g/L)"),
+    "estrobilurina", "mistura: pega o último par");
+});
+
+test("sem grupo químico devolve vazio, não chuta", () => {
+  assert.equal(extrairGrupoQuimico("produto sem parênteses"), "");
+  assert.equal(extrairGrupoQuimico("so (480 g/L)"), "");
+  assert.equal(extrairGrupoQuimico(""), "");
+  assert.equal(extrairGrupoQuimico(null), "");
+});
+
+test("rotação agrupa por família química e traz a ressalva", () => {
+  const r = base.rotacao({ cultura: "Soja" });
+  const nomes = r.grupos.map((g) => g.grupo_quimico);
+  assert.deepEqual(nomes, ["estrobilurina", "ácido ariloxialcanóico"].sort((a, b) => a.localeCompare(b, "pt-BR")));
+  assert.match(r.ressalva, /não o código oficial HRAC\/IRAC\/FRAC/i);
+  assert.match(r.ressalva, /agrônomo responsável/);
+  assert.equal(r.sem_grupo, 0);
+});
+
+test("a consulta devolve o grupo químico junto do produto", () => {
+  const { produtos } = base.consultar({ cultura: "Soja", alvo: "ferrugem asiatica" });
+  assert.equal(produtos[0].grupo_quimico, "estrobilurina");
+});
+
+test("reimportar por cima de uma base antiga recria o formato", async () => {
+  // Simula um banco criado por uma versão anterior, sem a coluna grupo_quimico.
+  const { DatabaseSync } = await import("node:sqlite");
+  const velho = join(pasta, "velho.sqlite3");
+  let d2 = new DatabaseSync(velho);
+  d2.exec("create table produtos (registro text, marca text)");
+  d2.prepare("insert into produtos values (?,?)").run("1", "Antigo");
+  d2.close();
+
+  d2 = new DatabaseSync(velho);
+  d2.exec("create table if not exists origem (chave text primary key, valor text not null)");
+  d2.prepare("insert into origem values (?,?)").run("aviso_antigo", "informação de uma versão anterior");
+  d2.close();
+
+  const r = await importar(csv, velho, { baixadoEm: "2026-10-13" });
+  assert.equal(r.gravadas, 3);
+  const b = abrir(velho);
+  try {
+    const { produtos } = b.consultar({ cultura: "Soja", alvo: "ferrugem asiatica" });
+    assert.equal(produtos[0].grupo_quimico, "estrobilurina");
+    assert.equal(b.consultar({ cultura: "Soja" }).produtos.some((p) => p.marca === "Antigo"), false,
+      "o conteúdo antigo não fica para trás");
+    assert.equal(b.procedencia().aviso_antigo, undefined,
+      "procedência de versão anterior não sobra contradizendo a nova");
+  } finally { b.fechar(); }
 });
 
 test("recusa um CSV com formato diferente", async () => {

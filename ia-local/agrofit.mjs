@@ -4,9 +4,15 @@
 // O que a base de origem tem e o que NÃO tem (conferido em 13/10/2026):
 //   tem  : nº de registro, marca comercial, formulação, ingrediente ativo, titular,
 //          classe, cultura, alvo (nome comum e científico), classes toxicológica e ambiental.
-//   NÃO tem: bula, intervalo de segurança, e o grupo de resistência (HRAC/IRAC/FRAC).
-//          A coluna MODO_DE_ACAO é texto livre ("sistêmico e seletivo") e vem vazia em
-//          45% das linhas, então NÃO serve para rotação de mecanismo de ação.
+//   tem, mas escondido: o GRUPO QUÍMICO vem dentro do ingrediente ativo, entre parênteses
+//          antes da concentração — "2,4-D-dimetilamina (ácido ariloxialcanóico) (806 g/L)".
+//          Extraímos para a coluna grupo_quimico: 98,5% das linhas, 171 grupos distintos.
+//          Serve para rotacionar família química (triazol x estrobilurina, por exemplo),
+//          mas NÃO é o código oficial HRAC/IRAC/FRAC: a conversão grupo -> código precisa
+//          de uma tabela à parte, aprovada pelo agrônomo.
+//   NÃO tem: bula e intervalo de segurança.
+//          MODO_DE_ACAO é texto livre ("sistêmico e seletivo") e vem vazia em 45% das
+//          linhas: não use para decidir rotação.
 //   SITUACAO vem "TRUE" em todas as linhas: a base só traz registros ativos. Produto
 //          cancelado não aparece — a ausência é a única pista.
 import { DatabaseSync } from "node:sqlite";
@@ -21,6 +27,35 @@ export const COLUNAS = ["NR_REGISTRO", "MARCA_COMERCIAL", "FORMULACAO", "INGREDI
 /** Tira acentos e baixa a caixa, para a busca não depender de como foi digitado. */
 export function normalizar(texto) {
   return (texto ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+/**
+ * Tira o grupo químico do ingrediente ativo.
+ * "glifosato (glicina substituída) (480 g/L)"      -> "glicina substituída"
+ * "etefom (etileno (precursor de)) (720 g/L)"      -> "etileno (precursor de)"
+ * Pega o último parêntese equilibrado ANTES do parêntese da concentração.
+ * Devolve "" quando não houver, em vez de chutar.
+ */
+export function extrairGrupoQuimico(ingrediente) {
+  const t = (ingrediente ?? "").trim();
+  if (!t) return "";
+  // Posições dos parênteses de primeiro nível.
+  const blocos = [];
+  let nivel = 0, inicio = -1;
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === "(") { if (nivel === 0) inicio = i; nivel++; }
+    else if (t[i] === ")") { nivel--; if (nivel === 0 && inicio >= 0) { blocos.push([inicio, i]); inicio = -1; } }
+  }
+  if (blocos.length < 2) return "";
+  const conteudo = ([a, b]) => t.slice(a + 1, b).trim();
+  const ehConcentracao = (s) => /^[\d.,]+\s*(?:g|mg|kg|ml|l|ui|%|u)\b/i.test(s) || /^[\d.,]+\s*[a-z]+\s*\/\s*[a-z]+$/i.test(s);
+  for (let i = blocos.length - 1; i >= 1; i--) {
+    if (ehConcentracao(conteudo(blocos[i]))) {
+      const g = conteudo(blocos[i - 1]);
+      return ehConcentracao(g) ? "" : g;
+    }
+  }
+  return "";
 }
 
 /** Divide uma linha de CSV com ponto e vírgula, respeitando aspas. */
@@ -43,7 +78,7 @@ export function lerLinhaCsv(linha) {
 const ESQUEMA = `
 create table if not exists produtos (
   registro text not null, marca text not null, formulacao text, ingrediente_ativo text,
-  titular text, classe text, modo_de_acao text,
+  titular text, classe text, modo_de_acao text, grupo_quimico text,
   cultura text not null, cultura_norm text not null,
   alvo_comum text, alvo_cientifico text, alvo_norm text not null,
   classe_toxicologica text, classe_ambiental text, organicos text
@@ -54,6 +89,7 @@ const INDICES = `
 create index if not exists idx_cultura on produtos (cultura_norm);
 create index if not exists idx_cultura_alvo on produtos (cultura_norm, alvo_norm);
 create index if not exists idx_marca on produtos (marca);
+create index if not exists idx_grupo on produtos (cultura_norm, grupo_quimico);
 `;
 
 /**
@@ -63,14 +99,16 @@ create index if not exists idx_marca on produtos (marca);
 export async function importar(csvCaminho, bancoCaminho, { origemUrl = "", baixadoEm = "" } = {}) {
   const db = new DatabaseSync(bancoCaminho);
   db.exec("pragma journal_mode = wal");
+  // A base é uma cópia derivada do CSV: recria do zero, para que uma mudança de
+  // colunas aqui não esbarre num banco antigo criado com o formato anterior.
+  db.exec("drop table if exists produtos");
   db.exec(ESQUEMA);
-  db.exec("delete from produtos");
 
   const inserir = db.prepare(`insert into produtos
-    (registro, marca, formulacao, ingrediente_ativo, titular, classe, modo_de_acao,
+    (registro, marca, formulacao, ingrediente_ativo, titular, classe, modo_de_acao, grupo_quimico,
      cultura, cultura_norm, alvo_comum, alvo_cientifico, alvo_norm,
      classe_toxicologica, classe_ambiental, organicos)
-    values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
 
   let linhas = 0, gravadas = 0, ignoradas = 0, cabecalho = null;
   const leitor = createInterface({ input: createReadStream(csvCaminho, { encoding: "utf8" }), crlfDelay: Infinity });
@@ -92,6 +130,7 @@ export async function importar(csvCaminho, bancoCaminho, { origemUrl = "", baixa
       if (!v("NR_REGISTRO") || !v("MARCA_COMERCIAL") || !cultura) { ignoradas++; continue; }
       inserir.run(v("NR_REGISTRO"), v("MARCA_COMERCIAL"), v("FORMULACAO"), v("INGREDIENTE_ATIVO"),
         v("TITULAR_DE_REGISTRO"), v("CLASSE"), v("MODO_DE_ACAO"),
+        extrairGrupoQuimico(v("INGREDIENTE_ATIVO")),
         cultura, normalizar(cultura), alvoComum, alvoCien,
         `${normalizar(alvoComum)} ${normalizar(alvoCien)}`.trim(),
         v("CLASSE_TOXICOLOGICA"), v("CLASSE_AMBIENTAL"), v("ORGANICOS"));
@@ -101,13 +140,16 @@ export async function importar(csvCaminho, bancoCaminho, { origemUrl = "", baixa
   } catch (e) { db.exec("rollback"); db.close(); throw e; }
 
   db.exec(INDICES);
+  // Limpa antes de regravar: chave de uma versão anterior não pode sobrar contradizendo a nova.
+  db.exec("delete from origem");
   const marcar = db.prepare("insert or replace into origem (chave, valor) values (?, ?)");
   marcar.run("fonte", "Agrofit - produtos formulados (dados abertos do MAPA)");
   marcar.run("url", origemUrl);
   marcar.run("baixado_em", baixadoEm || new Date().toISOString().slice(0, 10));
   marcar.run("linhas", String(gravadas));
   marcar.run("sem_bula_e_intervalo_seguranca", "sim");
-  marcar.run("sem_grupo_resistencia", "sim");
+  marcar.run("grupo_quimico", "extraído do ingrediente ativo; NÃO é o código oficial HRAC/IRAC/FRAC");
+  marcar.run("so_registros_ativos", "sim; produto cancelado simplesmente não aparece");
   db.close();
   return { linhas, gravadas, ignoradas };
 }
@@ -127,7 +169,7 @@ export function abrir(bancoCaminho) {
     const c = normalizar(cultura);
     if (!c) return { produtos: [], procedencia: procedencia(), aviso: "Informe a cultura." };
     const termos = normalizar(alvo).split(/\s+/).filter((t) => t.length > 2);
-    let sql = `select registro, marca, ingrediente_ativo, classe, formulacao, titular,
+    let sql = `select registro, marca, ingrediente_ativo, classe, formulacao, titular, grupo_quimico,
                       cultura, alvo_comum, alvo_cientifico, classe_toxicologica, classe_ambiental
                from produtos where cultura_norm = ?`;
     const params = [c];
@@ -151,8 +193,36 @@ export function abrir(bancoCaminho) {
     return !!db.prepare(sql).get(...(cultura ? [m, normalizar(cultura)] : [m]));
   }
 
+  /**
+   * Agrupa os produtos de uma cultura e alvo por família química, para apoiar rotação.
+   * Famílias diferentes = modos de ação provavelmente diferentes, mas isso é um APOIO:
+   * não é o código oficial HRAC/IRAC/FRAC e não substitui o parecer do agrônomo.
+   */
+  function rotacao({ cultura, alvo = "", limitePorGrupo = 5 } = {}) {
+    const { produtos, procedencia: p, aviso } = consultar({ cultura, alvo, limite: 200 });
+    const grupos = new Map();
+    let semGrupo = 0;
+    for (const prod of produtos) {
+      const g = (prod.grupo_quimico || "").trim();
+      if (!g) { semGrupo++; continue; }
+      if (!grupos.has(g)) grupos.set(g, []);
+      const lista = grupos.get(g);
+      if (lista.length < limitePorGrupo) lista.push(prod);
+    }
+    return {
+      grupos: [...grupos.entries()]
+        .map(([grupo_quimico, exemplos]) => ({ grupo_quimico, exemplos }))
+        .sort((a, b) => a.grupo_quimico.localeCompare(b.grupo_quimico, "pt-BR")),
+      sem_grupo: semGrupo,
+      procedencia: p,
+      aviso,
+      ressalva: "Famílias químicas, não o código oficial HRAC/IRAC/FRAC. Apoio à decisão; "
+        + "a rotação é definida pelo agrônomo responsável.",
+    };
+  }
+
   const culturas = () =>
     db.prepare("select distinct cultura from produtos order by cultura").all().map((r) => r.cultura);
 
-  return { consultar, existeProduto, culturas, procedencia, fechar: () => db.close() };
+  return { consultar, rotacao, existeProduto, culturas, procedencia, fechar: () => db.close() };
 }
